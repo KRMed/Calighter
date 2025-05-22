@@ -1,0 +1,28 @@
+{ 
+    "manifest_version": 3,
+    "name": "Calighter",
+    "description": "Highlight text and add it to Google Calendar",
+    "version": "1.0",
+    "icons": {
+        "16": "Calighter_icon_16x16.png",
+        "48": "Calighter_icon_48x48.png",
+        "128": "Calighter_icon_128x128.png"
+    },
+
+    "action": {
+        "default_icon": {
+            "16": "Calighter_icon_16x16.png",
+            "48": "Calighter_icon_48x48.png",
+            "128": "Calighter_icon_128x128.png"
+        },
+
+        "default_popup": "index.html"
+    },
+
+    "host_permissions": [
+        "https://*/*",
+        "http://*/*"
+    ]
+
+
+}
