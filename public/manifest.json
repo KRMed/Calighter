@@ -16,7 +16,7 @@
             "128": "Calighter_icon_128x128.png"
         },
 
-        "default_popup": "index.html"
+        "default_popup": "popup.html"
     },
 
     "host_permissions": [
