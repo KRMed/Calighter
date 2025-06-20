@@ -1,6 +1,6 @@
 'use client';
 import CalighterIcon from '/Calighter_icon_48x48.png'
-import AuthButton from './authbutton'
+import { AuthButton } from './authbutton'
 
 export default function Popup() {
     return (
