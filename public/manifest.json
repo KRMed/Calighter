@@ -3,6 +3,7 @@
     "name": "Calighter",
     "description": "Highlight text and add it to Google Calendar",
     "version": "1.0",
+    "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAh2FwJIS4+M2wr2HiX7dFHia5ku92uAizzpoigcu5MZIN/xxKuo5DyQbxs8LfVCMu6D8k7jwlbCmeD4qlWpFrwGglITa2j8RD/xwRNL78JQEkojIszvT5TN14lS1NSDD3HH2VR1MTJ55KmjyF0inOT1RJGr72pGbskSueJlvFyJNhaVgQOG2+UTMMQIrjRQaBKlg1W1MEE2PDaaDfFHkH3RrAs6NPFu2hfMgsQ6NDAmlYaVESjJggSJMEbyNJSKTcxG4lzZE2OtoH5+Jq6wqsc5sAVJyfQKV0NMBHbfGkWuTwdQnRmJChpj7CCuENI3QDMvxWE1O/r8ZDhC9I8Gf8rQIDAQAB",
     "icons": {
         "16": "Calighter_icon_16x16.png",
         "48": "Calighter_icon_48x48.png",
@@ -17,6 +18,11 @@
         }
     },
 
+    "oauth2": {
+        "client_id":"33992122648-ed0eghdmq53ug3b9ii52t93u4gqjbcjb.apps.googleusercontent.com",
+        "scopes": ["https://www.googleapis.com/auth/calendar"]
+    },
+
     "background": {
         "service_worker": "background.js",
         "type": "module"
@@ -27,7 +33,8 @@
     },
 
     "permissions": [
-        "sidePanel"
+        "sidePanel",
+        "identity"
     ],
 
     "host_permissions": [
