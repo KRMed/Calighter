@@ -10,6 +10,13 @@
         "128": "Calighter_icon_128x128.png"
     },
 
+    "content_scripts": [
+        {
+            "matches": ["<all_urls>"],
+            "js": ["content_scripts.js"]
+        }
+    ],
+
     "action": {
         "default_icon": {
             "16": "Calighter_icon_16x16.png",
@@ -35,7 +42,9 @@
     "permissions": [
         "sidePanel",
         "identity",
-        "storage"
+        "storage",
+        "activeTab",
+        "scripting"
     ],
 
     "host_permissions": [
