@@ -32,7 +32,9 @@ export default function Popup() {
                     tabs[0].id!,
                     { action: "getSelectedText" },
                     (response) => {
+                        console.log("Content script response:", response);
                         if (chrome.runtime.lastError) {
+                            console.log("Chrome runtime error:", chrome.runtime.lastError);
                             return;
                         }
                         if (response && response.selectedText && response.selectedText !== previousText) {
