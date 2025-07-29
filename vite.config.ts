@@ -4,7 +4,7 @@ import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
-  base: './', 
+  base: './',
   build: {
     outDir: 'dist',
     rollupOptions: {
@@ -12,5 +12,7 @@ export default defineConfig({
         popup: path.resolve(__dirname, 'popup.html'),
       },
     },
+    target: 'esnext',
   },
+  assetsInclude: ['**/*.wasm'], 
 });

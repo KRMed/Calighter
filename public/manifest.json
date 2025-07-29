@@ -17,6 +17,17 @@
         }
     ],
 
+    "content_security_policy": {
+        "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+    },
+
+    "web_accessible_resources": [
+        {
+            "resources": ["wasm/*"],
+            "matches": ["<all_urls>"]
+        }
+    ],
+
     "action": {
         "default_icon": {
             "16": "Calighter_icon_16x16.png",

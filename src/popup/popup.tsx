@@ -6,11 +6,13 @@ import { isAuthenticated, terminateToken } from './oauth';
 import { handleAddEvent } from './api';
 import {TextField, Switch} from '@mui/material';
 import * as chrono from 'chrono-node';
-
+import { summarizerAPI } from './api';
+import { loadNerPipeline, runModel } from './model'; 
 export default function Popup() {
     //Allows for usage of null, true, and false because typescript naturally does not allow for assignment of null
     const [authed, setAuthed] = useState<boolean | null>(null);
     const [input, setInput] = useState<boolean>(false)
+    const [nerPipelineLoaded, setNerPipelineLoaded] = useState<boolean>(false);
     const [eventTitle, setEventTitle] = useState<string>("");
     const [start, setStart] = useState<string>("");
     const [end, setEnd] = useState<string>(""); 
@@ -23,6 +25,18 @@ export default function Popup() {
     }, []);
 
     useEffect(() => {
+        if (authed) {
+            // Load NER pipeline if authenticated and setNerPipeline to true
+            loadNerPipeline().then(() => {
+                console.log("NER pipeline loaded successfully");
+                setNerPipelineLoaded(true);
+            }).catch((error) => {
+                console.error("Failed to load NER pipeline:", error);
+            });
+        }
+    }, [authed]);
+
+    useEffect(() => {
         let previousText = "";
         const interval = setInterval(() => {
             if (!input) return;
@@ -31,10 +45,8 @@ export default function Popup() {
                 chrome.tabs.sendMessage(
                     tabs[0].id!,
                     { action: "getSelectedText" },
-                    (response) => {
-                        console.log("Content script response:", response);
+                    async (response) => {
                         if (chrome.runtime.lastError) {
-                            console.log("Chrome runtime error:", chrome.runtime.lastError);
                             return;
                         }
                         if (response && response.selectedText && response.selectedText !== previousText) {
@@ -46,13 +58,37 @@ export default function Popup() {
                                 setStart(chronoStart ? chronoStart.date().toLocaleString() : "");
                                 setEnd(chronoEnd ? chronoEnd.date().toLocaleString() : "");
                             }
+                            try {
+                                if (nerPipelineLoaded) {
+                                    console.log("Running NER on:", response.selectedText);
+                                    const results = await runModel(response.selectedText);
+                                    console.log("NER results:", results);
 
-                            setEventTitle(response.selectedText);
+                                    if (results && results.EVENT.length > 0) {
+                                        console.log("Event detected:", results.EVENT[0]);
+                                        setEventTitle(results.EVENT.map(e => e.text).join(" "));
+                                    }
+                                    if (results && results.LOCATION.length > 0) {
+                                        console.log("Location detected:", results.LOCATION[0]);
+                                        setLocation(results.LOCATION.map(e => e.text).join(" "));
+                                    }
+                                }
+                            } catch (error) {
+                                console.error("Error running NER model:", error);
+                            }
+
+                            try {
+                                const result = await summarizerAPI(response.selectedText);
+                                setDescription(result || "");
+                            } catch (error) {
+                                setDescription("Summarization failed.");
+                                console.error("Summarization failed:", error);
+                            }
                         }
                     }
                 );
             });
-        }, 500);
+        }, 200);
 
         return () => clearInterval(interval);
     }, [input]);
@@ -112,7 +148,7 @@ export default function Popup() {
                             <TextField id="outlined-multiline-flexible" fullWidth size="small" sx={{ '& .MuiFilledInput-input': { fontSize: 13 } }} label="" placeholder='Location' value={location} onChange={(e) => setLocation(e.target.value)} multiline maxRows={3} />
                         </div>
                         <div className="mb-4 flex items-center gap-2 w-full">
-                            <TextField id="outlined-multiline-flexible" fullWidth size="small" sx={{ '& .MuiFilledInput-input': { fontSize: 13 } }} label="" placeholder='Description' value={description} onChange={(e) => setDescription(e.target.value)} multiline maxRows={3} />
+                            <TextField id="outlined-multiline-flexible" fullWidth size="small" sx={{ '& .MuiFilledInput-input': { fontSize: 13 } }} label="" placeholder='Description' value={description} onChange={(e) => setDescription(e.target.value)} multiline maxRows={5} />
                         </div>
                         <div className="mb-8 mt-8 flex justify-center gap-4 w-full">
                             <button onClick={handleAddEvent} className="text-black text-2xl font-normal font-['VT323'] outline outline-2 px-4 py-2 rounded" style={{ outlineColor: '#07BCFA' }}>

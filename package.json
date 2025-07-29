@@ -13,8 +13,10 @@
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "@fontsource/roboto": "^5.2.6",
+    "@huggingface/transformers": "^3.7.0",
     "@mui/material": "^7.2.0",
     "chrono-node": "^2.8.3",
+    "onnxruntime-web": "^1.22.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
