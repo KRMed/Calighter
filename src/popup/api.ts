@@ -1,5 +1,116 @@
-export async function handleAddEvent() {
-    console.log("Add event button clicked");
+import { getAccessToken, terminateToken } from "./oauth";
+
+interface EventInput {
+    title: string;
+    location?: string;
+    startTime: { dateTime: string };
+    endTime: { dateTime: string };
+    description?: string;
+}
+
+function toRFC3339Local(input: string): string {
+    let d = new Date(input);
+    if (isNaN(d.getTime())) {
+        const m = input.match(/^\s*(\d{1,2})\/(\d{1,2})\/(\d{4}),\s*(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)\s*$/i);
+        if (!m) throw new Error(`Unsupported date format: ${input}`);
+        let [, M, D, Y, h, min, s = "0", ampm] = m;
+        let H = (parseInt(h, 10) % 12) + (/pm/i.test(ampm) ? 12 : 0);
+        d = new Date(parseInt(Y, 10), parseInt(M, 10) - 1, parseInt(D, 10), H, parseInt(min, 10), parseInt(s, 10), 0);
+    }
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const offMin = -d.getTimezoneOffset();
+    const sign = offMin >= 0 ? "+" : "-";
+    const oh = pad(Math.floor(Math.abs(offMin) / 60));
+    const om = pad(Math.abs(offMin) % 60);
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+        + `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${sign}${oh}:${om}`;
+}
+
+async function postEvent(url: string, body: object, retries: number = 3, backoff: number = 500): Promise<Response> {
+    const send = (token: string) =>
+        fetch(url, {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(body),
+    });
+
+    let accessToken = await getAccessToken();
+
+    if (!accessToken) {
+        console.error("Failed to retrieve access token");
+        return new Response(null, { status: 401 });
+    }
+
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        let response = await send(accessToken);
+
+        if (response.status === 401) {
+            await terminateToken();
+            accessToken = await getAccessToken();
+            if (!accessToken) return response;
+            response = await send(accessToken);
+            if (response.ok) return response;
+        }
+
+        if (response.ok) {
+            return response;
+        }
+
+        if ([429, 500, 502, 503].includes(response.status) && attempt < retries) {
+            const delay = backoff * Math.pow(2, attempt);
+            await new Promise((res) => setTimeout(res, delay));
+            continue;
+        }
+
+        return response;
+    }
+
+    console.error("Failed to post event after retries");
+    return new Response(null, { status: 599, statusText: "Exhausted retries" });
+}
+
+export async function handleAddEvent(event: EventInput): Promise<void> {
+    if (!event.title || !event.title.trim()) {
+        console.error("Event title is required.");
+        return;
+    }
+    if (!event.startTime?.dateTime || !event.endTime?.dateTime) {
+        console.error("Start and end time are required.");
+        return;
+    }
+
+    const startISO = toRFC3339Local(event.startTime.dateTime);
+    const endISO   = toRFC3339Local(event.endTime.dateTime);
+
+    const body: any = {
+        summary: event.title.trim(),
+        start: { dateTime: startISO },
+        end:   { dateTime: endISO },
+    };
+    if (event.location && event.location.trim().length > 0) body.location = event.location.trim();
+    if (event.description && event.description.trim().length > 0) body.description = event.description.trim();
+
+    const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events`;
+    // Eventually when updating to add to multiple calendars, add this to URL ${encodeURIComponent(calendarId)}
+
+    try {
+        const response = await postEvent(url, body);
+
+        if (response.ok) {
+            console.log("Event added");
+            return;
+        } else {
+            let errorData: any = {};
+            try { errorData = await response.json(); } catch {}
+            console.error("Failed to add event:", response.status, errorData);
+            return;
+        }
+    } catch (error) {
+        console.error("An error occurred while adding the event:", error);
+    }
 }
 
 declare const Summarizer: any;

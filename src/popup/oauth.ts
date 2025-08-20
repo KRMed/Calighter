@@ -24,6 +24,18 @@ export async function isAuthenticated(): Promise<boolean> {
     });
 }
 
+export async function getAccessToken(): Promise<string | null> {
+    return new Promise((resolve) => {
+        chrome.identity.getAuthToken({ interactive: false }, (token) => {
+            if (chrome.runtime.lastError || !token) {
+                resolve(null);
+            } else {
+                resolve(token as string);
+            }
+        });
+    });
+}
+
 // This function revokes the token when the user signs out
 export async function terminateToken(): Promise<boolean> {
     return new Promise((resolve) => {

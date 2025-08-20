@@ -8,10 +8,16 @@ body {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  cursor: default;
 }
 
 #root {
   border-radius: 15px;
   overflow: hidden;   
   background: white;
+  cursor: default;
+}
+
+#root button {
+  cursor: pointer !important;
 }
