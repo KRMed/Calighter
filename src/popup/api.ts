@@ -6,6 +6,7 @@ interface EventInput {
     startTime: { dateTime: string };
     endTime: { dateTime: string };
     description?: string;
+    calendarId: string;
 }
 
 function toRFC3339Local(input: string): string {
@@ -72,6 +73,73 @@ async function postEvent(url: string, body: object, retries: number = 3, backoff
     return new Response(null, { status: 599, statusText: "Exhausted retries" });
 }
 
+export async function getCalendars(
+  retries: number = 3,
+  backoff: number = 500
+): Promise<{ id: string; summary: string }[] | null> {
+  const base = "https://www.googleapis.com/calendar/v3/users/me/calendarList";
+  const params = new URLSearchParams({
+    maxResults: "250", 
+    showHidden: "true",
+  });
+
+  const send = (token: string, pageToken?: string) => {
+    const url = `${base}?${params.toString()}${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ""}`;
+    return fetch(url, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
+  };
+
+  let accessToken = await getAccessToken();
+
+  if (!accessToken) {
+    console.error("Failed to retrieve access token");
+    return null;
+  }
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    let pageToken: string | undefined = undefined;
+    const all: { id: string; summary: string }[] = [];
+
+    while (true) {
+      let response = await send(accessToken, pageToken);
+
+      if (response.status === 401) {
+        await terminateToken();
+        accessToken = await getAccessToken();
+        if (!accessToken) return null;
+        response = await send(accessToken, pageToken);
+      }
+
+      if (!response.ok) {
+        if ([429, 500, 502, 503].includes(response.status) && attempt < retries) {
+          const delay = backoff * Math.pow(2, attempt);
+          await new Promise((res) => setTimeout(res, delay));
+          continue;
+        }
+        console.error("Failed to fetch calendars:", response.status, await response.text());
+        return null;
+      }
+
+      const data = await response.json();
+      const items = (data.items ?? []).map((c: any) => ({ id: c.id, summary: c.summary }));
+      all.push(...items);
+
+      pageToken = data.nextPageToken;
+      if (!pageToken) break;
+    }
+
+    return all;
+  }
+
+  console.error("Failed to fetch calendars after retries");
+  return null;
+}
+
 export async function handleAddEvent(event: EventInput): Promise<void> {
     if (!event.title || !event.title.trim()) {
         console.error("Event title is required.");
@@ -93,8 +161,7 @@ export async function handleAddEvent(event: EventInput): Promise<void> {
     if (event.location && event.location.trim().length > 0) body.location = event.location.trim();
     if (event.description && event.description.trim().length > 0) body.description = event.description.trim();
 
-    const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events`;
-    // Eventually when updating to add to multiple calendars, add this to URL ${encodeURIComponent(calendarId)}
+    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(event.calendarId)}/events`;
 
     try {
         const response = await postEvent(url, body);

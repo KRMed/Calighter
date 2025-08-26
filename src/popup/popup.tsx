@@ -3,7 +3,7 @@ import {useState, useEffect } from 'react';
 import CalighterIcon from '/Calighter_icon_48x48.png'
 import { AuthButton } from './authbutton'
 import { isAuthenticated, terminateToken } from './oauth';
-import { handleAddEvent } from './api';
+import { handleAddEvent, getCalendars } from './api';
 import {TextField, Switch} from '@mui/material';
 import "nes.css/css/nes.min.css";
 import { motion, AnimatePresence } from "framer-motion";
@@ -16,6 +16,8 @@ export default function Popup() {
     const [authed, setAuthed] = useState<boolean | null>(null);
     const [input, setInput] = useState<boolean>(false)
     const [nerPipelineLoaded, setNerPipelineLoaded] = useState<boolean>(false);
+    const [calendarList, setCalendarList] = useState<{ id: string; summary: string }[] | null>(null);
+    const [selectedCalendar, setSelectedCalendar] = useState<string>("");
     const [eventTitle, setEventTitle] = useState<string>("");
     const [start, setStart] = useState<string>("");
     const [end, setEnd] = useState<string>(""); 
@@ -39,6 +41,18 @@ export default function Popup() {
             });
         }
     }, [authed]);
+
+    useEffect(() => {
+        const fetchCalendars = async () => {
+            const calendars = await getCalendars();
+            if (calendars) {
+                console.log("Fetched calendars:", calendars);
+                setCalendarList(calendars);
+            }
+        };
+
+        fetchCalendars();
+    }, []);
 
     useEffect(() => {
         let previousText = "";
@@ -136,6 +150,15 @@ export default function Popup() {
                                             <input type="checkbox" className="w-6 h-6" />
                                         </label>
                                         <p className="text-black text-2xl font-normal font-['VT323'] mb-0">Switch Calendar</p>
+                                        <label>
+                                            <select className="w-full p-2 border rounded" value={selectedCalendar} onChange={(e) => setSelectedCalendar(e.target.value)}>
+                                                {calendarList?.map((calendar) => (
+                                                    <option key={calendar.id} value={calendar.id}>
+                                                        {calendar.summary}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </label>
                                     </motion.div>
                                 )}
                             </AnimatePresence>
@@ -175,6 +198,7 @@ export default function Popup() {
                                 startTime: { dateTime: start },
                                 endTime: { dateTime: end },
                                 description: description,
+                                calendarId: selectedCalendar || (calendarList && calendarList.length > 0 ? calendarList[0].id : ""),
                             }
                             )} className="text-black text-2xl font-normal font-['VT323'] outline outline-2 px-4 py-2 rounded" style={{ outlineColor: '#07BCFA' }}>
                                 Add to Calendar
