@@ -1,21 +1,28 @@
 'use client';
 import {useState, useEffect } from 'react';
+//import { IMaskInput } from 'react-imask';
 import CalighterIcon from '/Calighter_icon_48x48.png'
 import { AuthButton } from './authbutton'
 import { isAuthenticated, terminateToken } from './oauth';
-import { handleAddEvent } from './api';
+import { handleAddEvent, getCalendars } from './api';
 import {TextField, Switch} from '@mui/material';
+import "nes.css/css/nes.min.css";
+import { motion, AnimatePresence } from "framer-motion";
 import * as chrono from 'chrono-node';
 import { summarizerAPI } from './api';
 import { loadNerPipeline, runModel } from './model'; 
+
 export default function Popup() {
     //Allows for usage of null, true, and false because typescript naturally does not allow for assignment of null
     const [authed, setAuthed] = useState<boolean | null>(null);
     const [input, setInput] = useState<boolean>(false)
     const [nerPipelineLoaded, setNerPipelineLoaded] = useState<boolean>(false);
+    const [calendarList, setCalendarList] = useState<{ id: string; summary: string }[] | null>(null);
+    const [selectedCalendar, setSelectedCalendar] = useState<string>("");
     const [eventTitle, setEventTitle] = useState<string>("");
     const [start, setStart] = useState<string>("");
     const [end, setEnd] = useState<string>(""); 
+    const [showOptions, setShowOptions] = useState<boolean>(false);
     const [location, setLocation] = useState<string>("");
     const [description, setDescription] = useState<string>("");
     const [trash, setTrash] = useState<boolean>(false);
@@ -24,6 +31,7 @@ export default function Popup() {
         isAuthenticated().then(setAuthed);
     }, []);
 
+    // On authentication change
     useEffect(() => {
         if (authed) {
             // Load NER pipeline if authenticated and setNerPipeline to true
@@ -33,6 +41,17 @@ export default function Popup() {
             }).catch((error) => {
                 console.error("Failed to load NER pipeline:", error);
             });
+
+            // Fetch calendars as well
+            const fetchCalendars = async () => {
+            const calendars = await getCalendars();
+            if (calendars) {
+                console.log("Fetched calendars:", calendars);
+                setCalendarList(calendars);
+            }
+        };
+
+        fetchCalendars();
         }
     }, [authed]);
 
@@ -116,20 +135,43 @@ export default function Popup() {
             {/* If the user is authenticated, show text boxes*/}
                 {authed && (
                     <div>
-                        <div className='mb-6 flex flex-col items-start gap-2 w-2/3 bg-gray-300 p-4 rounded mx-auto'>
-                            <label className='text-lg'>
-                                Dark Mode
-                                <input type="checkbox" className="ml-4 w-6 h-6" />
-                            </label>
-                            <button className="bg-transparent hover:text-red-600 text-lg" onClick={async () => {
+                        <div className='mb-6 flex flex-col gap-3 justify-center items-center w-full'>
+                            <button type="button" className="nes-btn is-primary font-[VT323] w-full" onClick={() => setShowOptions(!showOptions)}>Settings</button>
+                            <AnimatePresence>
+                                {showOptions && (
+                                    <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: 'auto', opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={{ duration: 0.2 }}
+                                        className="overflow-hidden w-full space-y-1"
+                                    >
+                                        <label className="text-black text-2xl font-normal font-['VT323'] flex items-center justify-between mb-0 w-full">
+                                            Dark Mode
+                                            <input type="checkbox" className="w-6 h-6" />
+                                        </label>
+                                        <p className="text-black text-2xl font-normal font-['VT323'] mb-0">Switch Calendar</p>
+                                        <label>
+                                            <select className="w-full p-2 border rounded" value={selectedCalendar} onChange={(e) => setSelectedCalendar(e.target.value)}>
+                                                {calendarList?.map((calendar) => (
+                                                    <option key={calendar.id} value={calendar.id}>
+                                                        {calendar.summary}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </label>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                            <button type="button" className='nes-btn is-error font-[VT323] w-full' onClick={async () => {
                                 await terminateToken();
                                 setAuthed(false);
-                            }}>Sign Out
-                            </button>
-                            <button className='bg-transparent hover:text-red-600 text-lg'>
-                                Switch Accounts
-                            </button>
-
+                                setEventTitle("");
+                                setStart("");
+                                setEnd("");
+                                setLocation("");
+                                setDescription("");
+                            }}>Logout</button>
                         </div>
                         <div className="mb-4 flex items-center justify-center gap-2 w-full">
                             <p className="text-black text-2xl font-normal font-['VT323']">Enable Highlight Input</p> 
@@ -151,7 +193,15 @@ export default function Popup() {
                             <TextField id="outlined-multiline-flexible" fullWidth size="small" sx={{ '& .MuiFilledInput-input': { fontSize: 13 } }} label="" placeholder='Description' value={description} onChange={(e) => setDescription(e.target.value)} multiline maxRows={5} />
                         </div>
                         <div className="mb-8 mt-8 flex justify-center gap-4 w-full">
-                            <button onClick={handleAddEvent} className="text-black text-2xl font-normal font-['VT323'] outline outline-2 px-4 py-2 rounded" style={{ outlineColor: '#07BCFA' }}>
+                            <button onClick={ async() => handleAddEvent({
+                                title: eventTitle, // pulled from your state
+                                location: location,
+                                startTime: { dateTime: start },
+                                endTime: { dateTime: end },
+                                description: description,
+                                calendarId: selectedCalendar || (calendarList && calendarList.length > 0 ? calendarList[0].id : ""),
+                            }
+                            )} className="text-black text-2xl font-normal font-['VT323'] outline outline-2 px-4 py-2 rounded" style={{ outlineColor: '#07BCFA' }}>
                                 Add to Calendar
                             </button>
                             <button onMouseEnter={() => setTrash(true)} onMouseLeave={() => setTrash(false)} onClick={() => { setEventTitle(""); setStart(""); setEnd(""); setLocation(""); setDescription(""); }} className="bg-transparent hover:bg-gray-200 transition-colors duration-200 flex items-center justify-center p-2 rounded-full">
