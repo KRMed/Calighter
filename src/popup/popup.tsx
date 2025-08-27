@@ -1,5 +1,6 @@
 'use client';
 import {useState, useEffect } from 'react';
+//import { IMaskInput } from 'react-imask';
 import CalighterIcon from '/Calighter_icon_48x48.png'
 import { AuthButton } from './authbutton'
 import { isAuthenticated, terminateToken } from './oauth';
@@ -30,6 +31,7 @@ export default function Popup() {
         isAuthenticated().then(setAuthed);
     }, []);
 
+    // On authentication change
     useEffect(() => {
         if (authed) {
             // Load NER pipeline if authenticated and setNerPipeline to true
@@ -39,11 +41,9 @@ export default function Popup() {
             }).catch((error) => {
                 console.error("Failed to load NER pipeline:", error);
             });
-        }
-    }, [authed]);
 
-    useEffect(() => {
-        const fetchCalendars = async () => {
+            // Fetch calendars as well
+            const fetchCalendars = async () => {
             const calendars = await getCalendars();
             if (calendars) {
                 console.log("Fetched calendars:", calendars);
@@ -52,7 +52,8 @@ export default function Popup() {
         };
 
         fetchCalendars();
-    }, []);
+        }
+    }, [authed]);
 
     useEffect(() => {
         let previousText = "";
