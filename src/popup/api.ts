@@ -4,10 +4,11 @@ interface EventInput {
     title: string;
     location?: string;
     startTime: { dateTime: string };
-    endTime: { dateTime: string };
+    endTime?: { dateTime: string };
     description?: string;
     calendarId: string;
 }
+
 
 function toRFC3339Local(input: string): string {
     let d = new Date(input);
@@ -145,13 +146,26 @@ export async function handleAddEvent(event: EventInput): Promise<void> {
         console.error("Event title is required.");
         return;
     }
-    if (!event.startTime?.dateTime || !event.endTime?.dateTime) {
+    if (!event.startTime?.dateTime) {
         console.error("Start and end time are required.");
         return;
     }
 
+    let endInput: string;
+    if (!event.endTime?.dateTime) {
+        const startDate = new Date(event.startTime.dateTime);
+        if (isNaN(startDate.getTime())) {
+            console.error("Invalid start time format.");
+            return;
+        }
+        startDate.setHours(startDate.getHours() + 1);
+        endInput = startDate.toISOString(); // use ISO string for conversion
+    } else {
+        endInput = event.endTime.dateTime;
+    }
+
     const startISO = toRFC3339Local(event.startTime.dateTime);
-    const endISO   = toRFC3339Local(event.endTime.dateTime);
+    const endISO   = toRFC3339Local(endInput);
 
     const body: any = {
         summary: event.title.trim(),
@@ -180,34 +194,35 @@ export async function handleAddEvent(event: EventInput): Promise<void> {
     }
 }
 
-declare const Summarizer: any;
+// Legacy Experimental Summarizer feature
+// declare const Summarizer: any;
 
-export async function summarizerAPI(highlightedText: string): Promise<string | null> {
-    if ('Summarizer' in self){
+// export async function summarizerAPI(highlightedText: string): Promise<string | null> {
+//     if ('Summarizer' in self){
 
-        const available = await Summarizer.availability();
-        if (available === 'unavailable') {
-            console.error("Summarizer API is unavailable");
-            return null;
-        }
+//         const available = await Summarizer.availability();
+//         if (available === 'unavailable') {
+//             console.error("Summarizer API is unavailable");
+//             return null;
+//         }
 
-        const summarizer = await Summarizer.create({
-            type: 'tldr',      // or 'tldr', 'teaser', 'headline'
-            format: 'plain-text',      
-            length: 'short',         
-            sharedContext: "Summarize this for a Google Calendar event description",
-            expectedInputLanguages: ["en-US"],
-            outputLanguage: "en-US"
-        });
+//         const summarizer = await Summarizer.create({
+//             type: 'tldr',      // or 'tldr', 'teaser', 'headline'
+//             format: 'plain-text',      
+//             length: 'short',         
+//             sharedContext: "Summarize this for a Google Calendar event description",
+//             expectedInputLanguages: ["en-US"],
+//             outputLanguage: "en-US"
+//         });
 
-        // Generate a summary for your text
-        const summary = await summarizer.summarize(highlightedText);
-        summarizer.destroy();
-        return summary;
-    }
+//         // Generate a summary for your text
+//         const summary = await summarizer.summarize(highlightedText);
+//         summarizer.destroy();
+//         return summary;
+//     }
 
-    else {
-        console.error("Summarizer API is not available in this context.");
-        return null;
-    }
-}
+//     else {
+//         console.error("Summarizer API is not available in this context.");
+//         return null;
+//     }
+// }

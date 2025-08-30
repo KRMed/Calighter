@@ -1,15 +1,15 @@
 'use client';
 import {useState, useEffect } from 'react';
-//import { IMaskInput } from 'react-imask';
 import CalighterIcon from '/Calighter_icon_48x48.png'
 import { AuthButton } from './authbutton'
+import { DateTimeMask, formatMaskedLocal } from "./timemask"
 import { isAuthenticated, terminateToken } from './oauth';
 import { handleAddEvent, getCalendars } from './api';
 import {TextField, Switch} from '@mui/material';
 import "nes.css/css/nes.min.css";
 import { motion, AnimatePresence } from "framer-motion";
 import * as chrono from 'chrono-node';
-import { summarizerAPI } from './api';
+// import { summarizerAPI } from './api';
 import { loadNerPipeline, runModel } from './model'; 
 
 export default function Popup() {
@@ -48,6 +48,9 @@ export default function Popup() {
             if (calendars) {
                 console.log("Fetched calendars:", calendars);
                 setCalendarList(calendars);
+                if (calendars && calendars.length) {
+                    setSelectedCalendar((prev) => prev || calendars[0].id);
+                }
             }
         };
 
@@ -74,8 +77,8 @@ export default function Popup() {
                             console.log("Parsed Date:", parsedDate);
                             if (parsedDate && parsedDate.length > 0) {
                                 const {start: chronoStart, end: chronoEnd} = parsedDate[0];
-                                setStart(chronoStart ? chronoStart.date().toLocaleString() : "");
-                                setEnd(chronoEnd ? chronoEnd.date().toLocaleString() : "");
+                                setStart(chronoStart ? formatMaskedLocal(chronoStart.date()) : "");
+                                setEnd(chronoEnd ? formatMaskedLocal(chronoEnd.date()) : "");
                             }
                             try {
                                 if (nerPipelineLoaded) {
@@ -94,14 +97,6 @@ export default function Popup() {
                                 }
                             } catch (error) {
                                 console.error("Error running NER model:", error);
-                            }
-
-                            try {
-                                const result = await summarizerAPI(response.selectedText);
-                                setDescription(result || "");
-                            } catch (error) {
-                                setDescription("Summarization failed.");
-                                console.error("Summarization failed:", error);
                             }
                         }
                     }
@@ -181,10 +176,48 @@ export default function Popup() {
                             <TextField id="outlined-basic" fullWidth size="small" sx={{ '& .MuiFilledInput-input': { fontSize: 13 } }} placeholder='Event Title' value={eventTitle} onChange={(e) => setEventTitle(e.target.value)} />
                         </div>
                         <div className="mb-4 flex items-center gap-2 w-full">
-                            <TextField id="outlined-basic" fullWidth size="small" sx={{ '& .MuiFilledInput-input': { fontSize: 13 } }} placeholder='Start Time' value={start} onChange={(e) => setStart(e.target.value)} />
+                            <TextField
+                                id="outlined-basic"
+                                name="start"
+                                variant="outlined"
+                                fullWidth
+                                size="small"
+                                sx={{
+                                    "& .MuiOutlinedInput-input": { fontSize: "17px !important" },
+                                    "& .MuiInputBase-input": { fontSize: "17px !important" }, // fallback
+                                }}
+                                placeholder="Start Time"
+                                value={start}
+                                onChange={(e) => setStart(e.target.value)}
+                                slotProps={{
+                                    input: {
+                                        inputComponent: DateTimeMask as any,
+                                        name: "start",
+                                    },
+                                }}
+                            />
                         </div>
                         <div className="mb-4 flex items-center gap-2 w-full">
-                            <TextField id="outlined-basic" fullWidth size="small" sx={{ '& .MuiFilledInput-input': { fontSize: 13 } }} placeholder='End Time' value={end} onChange={(e) => setEnd(e.target.value)} />
+                            <TextField
+                                id="outlined-basic"
+                                name="end"
+                                variant="outlined"
+                                fullWidth
+                                size="small"
+                                sx={{
+                                    "& .MuiOutlinedInput-input": { fontSize: "17px !important" },
+                                    "& .MuiInputBase-input": { fontSize: "17px !important" }, // fallback
+                                }}
+                                placeholder=" Time"
+                                value={end}
+                                onChange={(e) => setEnd(e.target.value)}
+                                slotProps={{
+                                    input: {
+                                        inputComponent: DateTimeMask as any,
+                                        name: "end",
+                                    },
+                                }}
+                            />
                         </div>
                         <div className="mb-4 flex items-center gap-2 w-full">
                             <TextField id="outlined-multiline-flexible" fullWidth size="small" sx={{ '& .MuiFilledInput-input': { fontSize: 13 } }} label="" placeholder='Location' value={location} onChange={(e) => setLocation(e.target.value)} multiline maxRows={3} />
