@@ -2,10 +2,10 @@
 import {useState, useEffect } from 'react';
 import CalighterIcon from '/Calighter_icon_48x48.png'
 import { AuthButton } from './authbutton'
-import { DateTimeMask, formatMaskedLocal } from "./timemask"
 import { isAuthenticated, terminateToken } from './oauth';
 import { handleAddEvent, getCalendars } from './api';
 import {TextField, Switch} from '@mui/material';
+import { DateTimeAutoformatField, formatMaskedLocal } from "./timemask"; 
 import "nes.css/css/nes.min.css";
 import { motion, AnimatePresence } from "framer-motion";
 import * as chrono from 'chrono-node';
@@ -187,47 +187,24 @@ export default function Popup() {
                             <TextField id="outlined-basic" fullWidth size="small" sx={{ '& .MuiFilledInput-input': { fontSize: 13 } }} placeholder='Event Title' value={eventTitle} onChange={(e) => setEventTitle(e.target.value)} />
                         </div>
                         <div className="mb-4 flex items-center gap-2 w-full">
-                            <TextField
-                                id="outlined-basic"
+                            <DateTimeAutoformatField
                                 name="start"
-                                variant="outlined"
-                                fullWidth
-                                size="small"
-                                sx={{
-                                    "& .MuiOutlinedInput-input": { fontSize: "17px !important" },
-                                    "& .MuiInputBase-input": { fontSize: "17px !important" }, // fallback
-                                }}
-                                placeholder="Start Time"
                                 value={start}
                                 onChange={(e) => setStart(e.target.value)}
-                                slotProps={{
-                                    input: {
-                                        inputComponent: DateTimeMask as any,
-                                        name: "start",
-                                    },
+                                label={undefined}
+                                placeholder="Start Time"
+                                style={{
                                 }}
                             />
                         </div>
                         <div className="mb-4 flex items-center gap-2 w-full">
-                            <TextField
-                                id="outlined-basic"
+                            <DateTimeAutoformatField
                                 name="end"
-                                variant="outlined"
-                                fullWidth
-                                size="small"
-                                sx={{
-                                    "& .MuiOutlinedInput-input": { fontSize: "17px !important" },
-                                    "& .MuiInputBase-input": { fontSize: "17px !important" }, // fallback
-                                }}
-                                placeholder=" Time"
                                 value={end}
                                 onChange={(e) => setEnd(e.target.value)}
-                                slotProps={{
-                                    input: {
-                                        inputComponent: DateTimeMask as any,
-                                        name: "end",
-                                    },
-                                }}
+                                label={undefined}
+                                placeholder="End Time"
+                                style={{}}
                             />
                         </div>
                         <div className="mb-4 flex items-center gap-2 w-full">
