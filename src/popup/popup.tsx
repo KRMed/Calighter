@@ -4,7 +4,7 @@ import CalighterIcon from '/Calighter_icon_48x48.png'
 import { AuthButton } from './authbutton'
 import { isAuthenticated, terminateToken } from './oauth';
 import { handleAddEvent, getCalendars } from './api';
-import {TextField, Switch} from '@mui/material';
+import {TextField, Switch, CircularProgress} from '@mui/material';
 import { DateTimeAutoformatField, formatMaskedLocal } from "./timemask"; 
 import "nes.css/css/nes.min.css";
 import { motion, AnimatePresence } from "framer-motion";
@@ -118,14 +118,6 @@ export default function Popup() {
         };
     }, [input]);
 
-    if (authed === null) {
-        return (
-            <div className="w-full min-h-screen bg-white flex items-center justify-center">
-                <p className="text-black">Loading...</p>
-            </div>
-        );
-    }
-
     return (
         <div className="w-full min-h-screen bg-white flex flex-col items-center justify-center pt-8 gap-2 px-4">
             <div className="flex items-center gap-2">
@@ -133,13 +125,28 @@ export default function Popup() {
                 <h1 className="relative top-[5px] text-black text-6xl font-normal font-['VT323'] leading-none align-middle">Calighter</h1>
             </div>
             <div className='flex-1 flex items-center justify-center'>
-            {/* If the user is not authenticated, show the AuthButton */}
-                {!authed && (
+            {/* If the user is not authenticated, show the AuthButton (but not while auth is unknown) */}
+                {authed === false && (
                     <AuthButton onAuthSuccess={() => setAuthed(true)} />
                 )}
+            
+            {/* While auth is resolving OR model is loading (post-auth), show loading */}
+                {authed === null && (
+                    <div className='flex flex-col justify-center items-center mt-4'>
+                        <CircularProgress size={40} />
+                        <p className="text-black text-2xl font-normal font-['VT323'] leading-none align-middle mt-2">Authenticating...</p>
+                    </div>
+                )}
 
-            {/* If the user is authenticated, show text boxes*/}
-                {authed && (
+                {(authed && !nerPipelineLoaded) && (
+                    <div className='flex flex-col justify-center items-center mt-4'>
+                        <CircularProgress size={40} />
+                        <p className="text-black text-2xl font-normal font-['VT323'] leading-none align-middle mt-2">Loading Model...</p>
+                    </div>
+                )}
+
+            {/* When authenticated AND model loaded, show main UI */}
+                {authed && nerPipelineLoaded && (
                     <div>
                         <div className='mb-6 flex flex-col gap-3 justify-center items-center w-full'>
                             <button type="button" className="nes-btn is-primary font-[VT323] w-full" onClick={() => setShowOptions(!showOptions)}>Settings</button>
