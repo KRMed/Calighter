@@ -32,14 +32,12 @@
 
 ## 🔑 Features 
 - Highlight → One-click event creation
-- Local AI (NER) to extract Event / Time / Location
-- Natural language date parsing (AI + chrono-node fallback)
-- Google Calendar integration with retry + token refresh
+- Local AI model to extract Event / Time / Location
+- Natural language date parsing (AI + chrono-node date/time parsing)
+- Google Calendar integration with calendar selection and event posting
 - Editable event fields (title, start/end time, location, description)
-- Smart progressive time input mask (MM/dd/yyyy, hh:mm aa)
 - Side panel + popup support (Manifest V3)
 - Fully local inference (no external server for text processing)
-- Graceful handling of network/API errors
 
 ---
 
@@ -54,23 +52,25 @@ Calighter only requests the permissions it needs to parse highlights locally and
 | `identity`               | Google OAuth sign-in | Used only to request Calendar scopes |
 | `storage`                | Cache model + user prefs | Stores model artifacts and lightweight state locally |
 | `activeTab` / `scripting`| Inject (or message) content script on demand | Reads current selection when popup is active |
-| `sidePanel` (API)        | Optional UI surface | Requires Chrome 114+; set via `"side_panel"` in manifest |
+| `sidePanel`              | Preferred how it looked over typical extension | Requires Chrome 114+; set via `"side_panel"` in manifest |
 | (Optional) Host Permissions (`https://*/*`, `http://*/*`) | For persistent content script injection | Prefer `activeTab` if possible |
 | Scopes: `calendar.readonly`, `calendar.events` | Read calendars + create events | Only data you submit is sent to Google |
 
 **Privacy:**
-- Parsing runs **locally** in the browser (ONNX Runtime).
-- No third-party servers; no analytics or telemetry.
+- Parsing runs **locally** in the browser (ONNX Runtime and WebAssembly).
+- No third-party servers; no analytics or telemetry; no data stored outside of Chrome.
 - Only the event payload you confirm is sent to Google Calendar.
 
 ---
 
 ## 🤖 AI Model
 
-- **Current Model:** [Calighter Model](https://huggingface.co/donteattofu/calighter-model) (fine‑tuned for EVENT / TIME / LOCATION)
 - **Base Model:** [microsoft/MiniLM-L12-H384-uncased](https://huggingface.co/microsoft/MiniLM-L12-H384-uncased)
+  - FP32 checkpoint size: 134 MB
+- **Current Model:** [Calighter Model](https://huggingface.co/donteattofu/calighter-model) (fine‑tuned for EVENT / TIME / LOCATION)
+  - INT8: 33.8 MB (75% size reduction vs FP32)
+  - F1 Accuracy: 90%  
 - **Inference:** Runs client-side (WebAssembly backend). Model weights fetched once and cached.
-- **Fallback Parsing:** [chrono-node](https://github.com/wanasit/chrono) for ambiguous or complex date phrases.
 
 ---
 
