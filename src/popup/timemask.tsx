@@ -121,7 +121,6 @@ export function DateTimeAutoformatField({
   label,
   placeholder = "MM/DD/YYYY, hh:mm AM",
   required,
-  style,
 }: AutoDateProps) {
   const inputRef = React.useRef<HTMLInputElement>(null);
 
@@ -169,7 +168,7 @@ export function DateTimeAutoformatField({
           inputProps: { inputMode: "text", spellCheck: "false" },
         },
       }}
-      sx={{ "& input": { fontSize: 17 }, ...style }}
+      sx={{ '& .MuiFilledInput-input': { fontSize: 13 } }}
       fullWidth
       size="small"
     />
