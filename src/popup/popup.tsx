@@ -9,7 +9,6 @@ import {TextField, Switch} from '@mui/material';
 import "nes.css/css/nes.min.css";
 import { motion, AnimatePresence } from "framer-motion";
 import * as chrono from 'chrono-node';
-// import { summarizerAPI } from './api';
 import { loadNerPipeline, runModel } from './model'; 
 
 export default function Popup() {
@@ -60,6 +59,7 @@ export default function Popup() {
 
     useEffect(() => {
         let previousText = "";
+        console.log("[Calighter] Poller effect mount. input =", input);
         const interval = setInterval(() => {
             if (!input) return;
             chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -69,7 +69,15 @@ export default function Popup() {
                     { action: "getSelectedText" },
                     async (response) => {
                         if (chrome.runtime.lastError) {
+                            console.error("[Calighter] sendMessage error:", chrome.runtime.lastError.message);
                             return;
+                        }
+                        if (!response) {
+                            console.warn("[Calighter] No response from content script");
+                            return;
+                        }
+                        if (response.error) {
+                            console.error("[Calighter] Content script error:", response.error);
                         }
                         if (response && response.selectedText && response.selectedText !== previousText) {
                             previousText = response.selectedText;
@@ -104,7 +112,10 @@ export default function Popup() {
             });
         }, 200);
 
-        return () => clearInterval(interval);
+        return () => {
+            console.log("[Calighter] Poller effect cleanup.");
+            clearInterval(interval);
+        };
     }, [input]);
 
     if (authed === null) {
@@ -118,8 +129,8 @@ export default function Popup() {
     return (
         <div className="w-full min-h-screen bg-white flex flex-col items-center justify-center pt-8 gap-2 px-4">
             <div className="flex items-center gap-2">
-                <img className="w-12 h-12" src={CalighterIcon} alt="Calighter Icon"/>
-                <h1 className="text-black text-5xl font-normal font-['VT323']">Calighter</h1>
+                <img className="w-19 h-19 object-contain shrink-0" src={CalighterIcon} alt="Calighter Icon"/>
+                <h1 className="relative top-[5px] text-black text-6xl font-normal font-['VT323'] leading-none align-middle">Calighter</h1>
             </div>
             <div className='flex-1 flex items-center justify-center'>
             {/* If the user is not authenticated, show the AuthButton */}
@@ -169,8 +180,8 @@ export default function Popup() {
                             }}>Logout</button>
                         </div>
                         <div className="mb-4 flex items-center justify-center gap-2 w-full">
-                            <p className="text-black text-2xl font-normal font-['VT323']">Enable Highlight Input</p> 
-                            <Switch checked={input} onChange={(e) => setInput(e.target.checked)} />
+                            <p className="relative top-[8px] text-black text-2xl font-normal font-['VT323'] leading-none align-middle">Enable Highlight Input</p> 
+                            <Switch checked={input} onChange={(e) => {console.log("[Calighter] Enable Highlight Input:", e.target.checked);setInput(e.target.checked)}} />
                         </div>
                         <div className="mb-4 flex items-center gap-2 w-full">
                             <TextField id="outlined-basic" fullWidth size="small" sx={{ '& .MuiFilledInput-input': { fontSize: 13 } }} placeholder='Event Title' value={eventTitle} onChange={(e) => setEventTitle(e.target.value)} />

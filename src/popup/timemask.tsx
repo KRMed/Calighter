@@ -14,7 +14,7 @@ export const DateTimeMask = React.forwardRef<HTMLInputElement, CustomProps>(
     return (
       <IMaskInput
         {...other}
-        mask="00/00/0000, 00:00:00 aa"
+        mask="MM/DD/YYYY, hh:mm:ss aa"
         blocks={{
             MM: { mask: IMask.MaskedRange, from: 1, to: 12, maxLength: 2 },
             DD: { mask: IMask.MaskedRange, from: 1, to: 31, maxLength: 2 },
