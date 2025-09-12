@@ -1,10 +1,12 @@
 'use client';
-import {useState, useEffect } from 'react';
+import {useState, useEffect, useMemo } from 'react';
 import CalighterIcon from '/Calighter_icon_48x48.png'
 import { AuthButton } from './authbutton'
 import { isAuthenticated, terminateToken } from './oauth';
 import { handleAddEvent, getCalendars } from './api';
 import {TextField, Switch, CircularProgress} from '@mui/material';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
 import { DateTimeAutoformatField, formatMaskedLocal } from "./timemask"; 
 import "nes.css/css/nes.min.css";
 import { motion, AnimatePresence } from "framer-motion";
@@ -18,6 +20,7 @@ export default function Popup() {
     const [nerPipelineLoaded, setNerPipelineLoaded] = useState<boolean>(false);
     const [calendarList, setCalendarList] = useState<{ id: string; summary: string }[] | null>(null);
     const [selectedCalendar, setSelectedCalendar] = useState<string>("");
+    const [darkMode, setDarkMode] = useState<boolean>(false);
     const [eventTitle, setEventTitle] = useState<string>("");
     const [start, setStart] = useState<string>("");
     const [end, setEnd] = useState<string>(""); 
@@ -56,6 +59,23 @@ export default function Popup() {
         fetchCalendars();
         }
     }, [authed]);
+
+    // Used to enable dark mode
+    useEffect(() => {
+        document.documentElement.classList.toggle('dark', darkMode);
+    }, [darkMode]);
+
+    // MUI theme tied to darkMode
+    const theme = useMemo(
+        () =>
+            createTheme({
+                palette: {
+                    mode: darkMode ? 'dark' : 'light',
+                    primary: { main: '#07BCFA' },
+                },
+            }),
+        [darkMode]
+    );
 
     useEffect(() => {
         let previousText = "";
@@ -119,10 +139,12 @@ export default function Popup() {
     }, [input]);
 
     return (
-        <div className="w-full min-h-screen bg-white flex flex-col items-center justify-center pt-8 gap-2 px-4">
+        <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <div className="w-full min-h-screen dark:bg-neutral-700 bg-white flex flex-col items-center justify-center pt-8 gap-2 px-4 overflow-y-auto" style={{ scrollbarGutter: 'stable both-edges' }}>
             <div className="flex items-center gap-2">
                 <img className="w-19 h-19 object-contain shrink-0" src={CalighterIcon} alt="Calighter Icon"/>
-                <h1 className="relative top-[5px] text-black text-6xl font-normal font-['VT323'] leading-none align-middle">Calighter</h1>
+                <h1 className="relative top-[5px] text-black dark:text-white text-6xl font-normal font-['VT323'] leading-none align-middle">Calighter</h1>
             </div>
             <div className='flex-1 flex items-center justify-center'>
             {/* If the user is not authenticated, show the AuthButton (but not while auth is unknown) */}
@@ -147,9 +169,9 @@ export default function Popup() {
 
             {/* When authenticated AND model loaded, show main UI */}
                 {authed && nerPipelineLoaded && (
-                    <div>
-                        <div className='mb-6 flex flex-col gap-3 justify-center items-center w-full'>
-                            <button type="button" className="nes-btn is-primary font-[VT323] w-full" onClick={() => setShowOptions(!showOptions)}>Settings</button>
+                    <div className="w-[310px] max-w-full mx-auto px-0">
+                        <div className='mb-6 flex flex-col gap-3 items-stretch w-full'>
+                            <button type="button" className="nes-btn is-primary font-[VT323] w-full !m-0" onClick={() => setShowOptions(!showOptions)}>Settings</button>
                             <AnimatePresence>
                                 {showOptions && (
                                     <motion.div
@@ -159,13 +181,17 @@ export default function Popup() {
                                         transition={{ duration: 0.2 }}
                                         className="overflow-hidden w-full space-y-1"
                                     >
-                                        <label className="text-black text-2xl font-normal font-['VT323'] flex items-center justify-between mb-0 w-full">
+                                        <label className="text-black dark:text-white text-2xl font-normal font-['VT323'] flex items-center justify-between mb-0 w-full">
                                             Dark Mode
-                                            <input type="checkbox" className="w-6 h-6" />
+                                            <input type="checkbox" className="w-6 h-6" checked={darkMode} onChange={(e) => setDarkMode(e.target.checked)} />
                                         </label>
-                                        <p className="text-black text-2xl font-normal font-['VT323'] mb-0">Switch Calendar</p>
+                                        <p className="text-black dark:text-white text-2xl font-normal font-['VT323'] mb-0">Switch Calendar</p>
                                         <label>
-                                            <select className="w-full p-2 border rounded" value={selectedCalendar} onChange={(e) => setSelectedCalendar(e.target.value)}>
+                                            <select
+                                                className="w-full p-2 rounded border border-gray-300 bg-white text-gray-900 dark:border-gray-600 dark:bg-neutral-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                                                value={selectedCalendar}
+                                                onChange={(e) => setSelectedCalendar(e.target.value)}
+                                            >
                                                 {calendarList?.map((calendar) => (
                                                     <option key={calendar.id} value={calendar.id}>
                                                         {calendar.summary}
@@ -176,7 +202,7 @@ export default function Popup() {
                                     </motion.div>
                                 )}
                             </AnimatePresence>
-                            <button type="button" className='nes-btn is-error font-[VT323] w-full' onClick={async () => {
+                            <button type="button" className="nes-btn dark:bg-white is-error font-[VT323] w-full !m-0 !mt-2" onClick={async () => {
                                 await terminateToken();
                                 setAuthed(false);
                                 setEventTitle("");
@@ -187,7 +213,7 @@ export default function Popup() {
                             }}>Logout</button>
                         </div>
                         <div className="mb-4 flex items-center justify-center gap-2 w-full">
-                            <p className="relative top-[8px] text-black text-2xl font-normal font-['VT323'] leading-none align-middle">Enable Highlight Input</p> 
+                            <p className="relative top-[8px] text-black dark:text-white text-2xl font-normal font-['VT323'] leading-none align-middle">Enable Highlight Input</p> 
                             <Switch checked={input} onChange={(e) => {console.log("[Calighter] Enable Highlight Input:", e.target.checked);setInput(e.target.checked)}} />
                         </div>
                         <div className="mb-4 flex items-center gap-2 w-full">
@@ -229,7 +255,7 @@ export default function Popup() {
                                 description: description,
                                 calendarId: selectedCalendar || (calendarList && calendarList.length > 0 ? calendarList[0].id : ""),
                             }
-                            )} className="text-black text-2xl font-normal font-['VT323'] outline outline-2 px-4 py-2 rounded" style={{ outlineColor: '#07BCFA' }}>
+                            )} className="text-black dark:bg-white text-2xl font-normal font-['VT323'] outline outline-2 px-4 py-2 rounded" style={{ outlineColor: '#07BCFA' }}>
                                 Add to Calendar
                             </button>
                             <button onMouseEnter={() => setTrash(true)} onMouseLeave={() => setTrash(false)} onClick={() => { setEventTitle(""); setStart(""); setEnd(""); setLocation(""); setDescription(""); }} className="bg-transparent hover:bg-gray-200 transition-colors duration-200 flex items-center justify-center p-2 rounded-full">
@@ -239,6 +265,7 @@ export default function Popup() {
                     </div>
                 )}
             </div>
-        </div>
+    </div>
+    </ThemeProvider>
     )
 }
