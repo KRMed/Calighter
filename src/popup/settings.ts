@@ -31,11 +31,24 @@ export const DARK_MODE_KEY = 'darkMode';
 export const CALENDAR_ID_KEY = 'selectedCalendarId';
 
 export function loadDarkModeSetting(): Promise<boolean> {
-    return loadSetting<boolean>(DARK_MODE_KEY, false);
+  try {
+    const val = localStorage.getItem(DARK_MODE_KEY);
+    if (val !== null) {
+      return Promise.resolve(val === "true");
+    }
+  } catch {
+    // ignore localStorage errors and fall back
+  }
+  return loadSetting<boolean>(DARK_MODE_KEY, false);
 }
 
 export function saveDarkModeSetting(enabled: boolean): Promise<void> {
-    return saveSetting<boolean>(DARK_MODE_KEY, enabled);
+  try {
+    localStorage.setItem(DARK_MODE_KEY, String(enabled));
+  } catch {
+    // ignore if localStorage write fails
+  }
+  return saveSetting<boolean>(DARK_MODE_KEY, enabled);
 }
 
 export function loadPreviousCalendar(): Promise<string | null> {

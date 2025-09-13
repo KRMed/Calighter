@@ -4,8 +4,36 @@
     <meta charset="UTF-8" />
     <title>Popup</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      html, body { background: #111827; }
+      :root { color-scheme: dark light; } /* let UA adapt scrollbars, etc. */
+    </style>
+    <script>
+      try {
+        const saved = localStorage.getItem('darkMode'); 
+        if (saved === 'true') {
+          document.documentElement.classList.add('dark');
+        } else if (saved === 'false') {
+          document.documentElement.classList.remove('dark');
+          document.documentElement.style.background = '#ffffff';
+          document.body.style.background = '#ffffff';
+        } else {
+          const prefersDark = window.matchMedia &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (prefersDark) {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+            document.documentElement.style.background = '#ffffff';
+            document.body.style.background = '#ffffff';
+          }
+        }
+      } catch (e) {
+        document.documentElement.classList.add('dark');
+      }
+    </script>
   </head>
-  <body style="background: #111827;">
+  <body>
     <div id="root"></div>
     <script type="module" src="src/popup/main.tsx"></script>
   </body>

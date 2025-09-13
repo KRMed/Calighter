@@ -1,7 +1,12 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import CalighterIcon from "/Calighter_icon_48x48.png";
-import { loadDarkModeSetting, saveDarkModeSetting, loadPreviousCalendar, savePreviousCalendar } from "./settings";
+import {
+  loadDarkModeSetting,
+  saveDarkModeSetting,
+  loadPreviousCalendar,
+  savePreviousCalendar,
+} from "./settings";
 import { AuthButton } from "./authbutton";
 import { isAuthenticated, terminateToken } from "./oauth";
 import { handleAddEvent, getCalendars } from "./api";
@@ -15,84 +20,83 @@ import * as chrono from "chrono-node";
 import { loadNerPipeline, runModel } from "./model";
 
 export default function Popup() {
-    //Allows for usage of null, true, and false because typescript naturally does not allow for assignment of null
-    const [authed, setAuthed] = useState<boolean | null>(null);
-    const [input, setInput] = useState<boolean>(false);
-    const [nerPipelineLoaded, setNerPipelineLoaded] = useState<boolean>(false);
-    const [calendarList, setCalendarList] = useState<{ id: string; summary: string }[] | null>(null);
-    const [selectedCalendar, setSelectedCalendar] = useState<string>("");
-    const [darkMode, setDarkMode] = useState<boolean>(false);
-    const [eventTitle, setEventTitle] = useState<string>("");
-    const [start, setStart] = useState<string>("");
-    const [end, setEnd] = useState<string>("");
-    const [showOptions, setShowOptions] = useState<boolean>(false);
-    const [location, setLocation] = useState<string>("");
-    const [description, setDescription] = useState<string>("");
-    const [trash, setTrash] = useState<boolean>(false);
+  const [authed, setAuthed] = useState<boolean | null>(null);
+  const [input, setInput] = useState<boolean>(false);
+  const [nerPipelineLoaded, setNerPipelineLoaded] = useState<boolean>(false);
+  const [calendarList, setCalendarList] = useState<{ id: string; summary: string }[] | null>(null);
+  const [selectedCalendar, setSelectedCalendar] = useState<string>("");
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    try { return localStorage.getItem("darkMode") === "true"; } catch { return false; }
+  });
+  const [eventTitle, setEventTitle] = useState<string>("");
+  const [start, setStart] = useState<string>("");
+  const [end, setEnd] = useState<string>("");
+  const [showOptions, setShowOptions] = useState<boolean>(false);
+  const [location, setLocation] = useState<string>("");
+  const [description, setDescription] = useState<string>("");
+  const [trash, setTrash] = useState<boolean>(false);
 
-    useEffect(() => {
+  // Check authentication on mount
+  useEffect(() => {
     isAuthenticated().then(setAuthed);
-    }, []);
+  }, []);
 
-    // On authentication change
-    useEffect(() => {
+  // Load NER and calendars when authed
+  useEffect(() => {
     if (authed) {
-        // Load NER pipeline if authenticated and setNerPipeline to true
-        loadNerPipeline()
-        .then(() => {
-            console.log("NER pipeline loaded successfully");
-            setNerPipelineLoaded(true);
-        })
-        .catch((error) => {
-            console.error("Failed to load NER pipeline:", error);
-        });
+      loadNerPipeline().then(() => setNerPipelineLoaded(true));
 
-        // Fetch calendars as well
-        const fetchCalendars = async () => {
+      const fetchCalendars = async () => {
         const calendars = await getCalendars();
         if (calendars) {
-            console.log("Fetched calendars:", calendars);
-            setCalendarList(calendars);
-            if (calendars && calendars.length) {
+          setCalendarList(calendars);
+          if (calendars.length) {
             setSelectedCalendar((prev) => prev || calendars[0].id);
-            }
+          }
         }
-        };
+      };
 
-        fetchCalendars();
+      fetchCalendars();
     }
-    }, [authed]);
+  }, [authed]);
 
-    // Load dark mode setting on mount
+  // Load dark mode setting from chrome.storage and sync to localStorage
     useEffect(() => {
     loadDarkModeSetting().then((j) => {
         setDarkMode(j);
+        try { localStorage.setItem("darkMode", String(j)); } catch {}
     });
     }, []);
 
-    // Load previously selected calendar on mount
-    useEffect(() => {
+  // Load previous calendar
+  useEffect(() => {
     loadPreviousCalendar().then((id) => {
-        if (id) setSelectedCalendar(id);
+      if (id) setSelectedCalendar(id);
     });
-    }, []);
+  }, []);
 
-    // Used to enable dark mode
-    useEffect(() => {
+  // Apply or remove the "dark" class on <html>
+  useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
-    }, [darkMode]);
+  }, [darkMode]);
 
-    // MUI theme tied to darkMode
-    const theme = useMemo(
-    () =>
-        createTheme({
-        palette: {
-            mode: darkMode ? "dark" : "light",
-            primary: { main: "#07BCFA" },
+const theme = createTheme({
+    palette: {
+    mode: darkMode ? "dark" : "light",
+    primary: { main: "#07BCFA" },
+    background: {
+        default: darkMode ? "#111827" : "#ffffff",
+    },
+    },
+    components: {
+    MuiCssBaseline: {
+        styleOverrides: {
+        body: { backgroundColor: "inherit", color: "inherit" },
+        html: { backgroundColor: "inherit" },
         },
-        }),
-    [darkMode],
-    );
+    },
+    },
+});
 
     useEffect(() => {
     let previousText = "";
@@ -169,9 +173,9 @@ export default function Popup() {
 
     return (
     <ThemeProvider theme={theme}>
-        <CssBaseline />
+        <CssBaseline enableColorScheme />
         <div
-        className="w-full min-h-screen dark:bg-neutral-900 bg-white flex flex-col items-center justify-center pt-8 gap-2 px-4 overflow-y-auto"
+        className={`w-full min-h-screen ${darkMode ? "bg-neutral-900" : "bg-white"} flex flex-col items-center justify-center pt-8 gap-2 px-4 overflow-y-auto`}
         style={{ scrollbarGutter: "stable both-edges" }}
         >
         <div className="flex items-center gap-2">
@@ -236,8 +240,10 @@ export default function Popup() {
                             className="w-6 h-6"
                             checked={darkMode}
                             onChange={(e) => {
-                            setDarkMode(e.target.checked);
-                            saveDarkModeSetting(e.target.checked);
+                            const v = e.target.checked;
+                            setDarkMode(v);
+                            saveDarkModeSetting(v);
+                            try { localStorage.setItem("darkMode", String(v)); } catch {}
                             }}
                         />
                         </label>
