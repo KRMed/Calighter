@@ -8,14 +8,25 @@ if (env.backends?.onnx?.wasm) {
   env.backends.onnx.wasm.numThreads = 1;
 }
 
-let nerPipeline: any = null;
+type NerToken = {
+    entity: string;
+    word: string;
+    score: number;
+};
 
-export async function loadNerPipeline(): Promise<any> {
+type NerPipeline = (text: string, opts?: { aggregation_strategy?: string } | Record<string, unknown>) => Promise<NerToken[]>;
+
+let nerPipeline: NerPipeline | null = null;
+
+export async function loadNerPipeline(): Promise<NerPipeline> {
     if (nerPipeline) return nerPipeline;
 
-    nerPipeline = await pipeline('token-classification', 'donteattofu/calighter-model', {
+    const p = await pipeline('token-classification', 'donteattofu/calighter-model', {
         progress_callback: console.log,
     });
+
+    // pipeline's runtime type may not match our narrow interface; cast safely via unknown
+    nerPipeline = p as unknown as NerPipeline;
 
     return nerPipeline;
 }
