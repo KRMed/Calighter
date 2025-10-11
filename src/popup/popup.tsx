@@ -198,7 +198,7 @@ const theme = createTheme({
             {authed === null && (
             <div className="flex flex-col justify-center items-center mt-4">
                 <CircularProgress size={40} />
-                <p className="text-black text-2xl font-normal font-['VT323'] leading-none align-middle mt-2">
+                <p className="text-black dark:text-white text-2xl font-normal font-['VT323'] leading-none align-middle mt-2">
                 Authenticating...
                 </p>
             </div>
