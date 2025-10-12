@@ -1,176 +1,287 @@
-'use client';
+"use client";
 import * as React from "react";
-import TextField from "@mui/material/TextField";
-import { parse as dfParse, format as dfFormat, isValid as dfIsValid } from "date-fns";
+import { TextField, FormHelperText } from "@mui/material";
 
-// constants
-const FMT = "MM/dd/yyyy, hh:mm aa";
-const YEAR_MIN = 2000;
-const YEAR_MAX = 2099;
-
-function formatProgressive(raw: string): string {
-  let s = (raw ?? "").toUpperCase();
-  s = s.replace(/[^\dAPM]/g, ""); // keep only digits and A/P/M
-
-  // accept partial AM/PM buffer at the end: "A", "P", "AM", "PM"
-  let ampmBuf = "";
-  const tail = s.match(/(AM?|PM?)$/i);
-  if (tail) {
-    ampmBuf = tail[1].toUpperCase();
-    s = s.slice(0, -ampmBuf.length);
-  }
-
-  // Up to 12 digits (no seconds): MM(2) DD(2) YYYY(4) hh(2) mm(2)
-  const digits = s.replace(/\D/g, "").slice(0, 12);
-
-  const MM = digits.slice(0, 2);
-  const DD = digits.slice(2, 4);
-  const YYYY = digits.slice(4, 8);
-  const hh = digits.slice(8, 10);
-  const mm = digits.slice(10, 12);
-
-  const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
-
-  const MMc = MM.length === 2 ? String(clamp(parseInt(MM, 10), 1, 12)).padStart(2, "0") : MM;
-  const DDc = DD.length === 2 ? String(clamp(parseInt(DD, 10), 1, 31)).padStart(2, "0") : DD;
-
-  let YYYYc = YYYY;
-  if (YYYY.length === 4) {
-    const yr = clamp(parseInt(YYYY, 10), YEAR_MIN, YEAR_MAX);
-    YYYYc = String(yr);
-  }
-
-  let hhc = hh;
-  if (hh.length === 2) {
-    const h12 = (parseInt(hh, 10) % 12) || 12;
-    hhc = String(clamp(h12, 1, 12)).padStart(2, "0");
-  }
-
-  const mmc = mm.length === 2 ? String(clamp(parseInt(mm, 10), 0, 59)).padStart(2, "0") : mm;
-
-  // Rebuild progressively with separators (no placeholders)
-  let out = "";
-  if (MMc) out += MMc;
-  if (DDc || YYYYc || hhc || mmc || ampmBuf) out += MMc.length ? "/" : "";
-  if (DDc) out += DDc;
-  if (YYYYc || hhc || mmc || ampmBuf) out += DDc.length ? "/" : "";
-  if (YYYYc) out += YYYYc;
-  if (hhc || mmc || ampmBuf) out += YYYYc.length ? ", " : "";
-  if (hhc) out += hhc;
-  if (mmc || ampmBuf) out += hhc.length ? ":" : "";
-  if (mmc) out += mmc;
-
-  // Append partial/full AM/PM buffer (with leading space)
-  if (ampmBuf) out += (out.endsWith(" ") ? "" : " ") + ampmBuf;
-
-  // Trim dangling separators
-  return out.replace(/([:,/]\s*)$/, "");
-}
-
-function parseExactMasked(value: string): Date | null {
-  const d = dfParse((value ?? "").trim(), FMT, new Date());
-  if (!dfIsValid(d)) return null;
-  const y = d.getFullYear();
-  if (y < YEAR_MIN || y > YEAR_MAX) return null;
-  return d;
-}
-
-export function formatMaskedLocal(d: Date): string {
-  return dfFormat(d, FMT);
-}
-
-function countTokensBefore(rawUpper: string, caret: number): number {
-  let n = 0;
-  for (let i = 0; i < Math.min(caret, rawUpper.length); i++) {
-    const ch = rawUpper[i];
-    if ((ch >= "0" && ch <= "9") || ch === "A" || ch === "P" || ch === "M") n++;
-  }
-  return n;
-}
-
-function caretIndexAfterTokens(formatted: string, tokens: number): number {
-  if (tokens <= 0) return 0;
-  let seen = 0;
-  for (let i = 0; i < formatted.length; i++) {
-    const ch = formatted[i].toUpperCase();
-    const isToken =
-      (ch >= "0" && ch <= "9") || ch === "A" || ch === "P" || ch === "M";
-    if (isToken) {
-      seen++;
-      if (seen >= tokens) return i + 1; 
-    }
-  }
-  return formatted.length;
-}
-
-/* ======================= INPUT COMPONENT ======================= */
-export interface AutoDateProps {
-  name: string;
-  value: string; 
-  onChange: (event: { target: { name: string; value: string } }) => void;
+/** Public API */
+export type MaskFieldProps = {
+  value: string;                 // "MM/DD/YY" or "HH:MM AM/PM"
+  onChange: (v: string) => void; // emits formatted value
   label?: string;
+  errorText?: string | null;
+  disabled?: boolean;
   placeholder?: string;
-  required?: boolean;
-  style?: React.CSSProperties;
+  fullWidth?: boolean;
+  size?: "small" | "medium";
+  variant?: "outlined" | "filled" | "standard";
+};
+
+/* ================= Helpers ================= */
+const pad2 = (n: number) => String(n).padStart(2, "0");
+const onlyDigits = (s: string) => s.replace(/\D+/g, "");
+const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
+
+/** Formatters (Date -> mask strings) */
+export function formatDateMaskFromDate(d: Date): string {
+  return `${pad2(d.getMonth() + 1)}/${pad2(d.getDate())}/${String(d.getFullYear()).slice(-2)}`;
+}
+export function formatTimeMaskFromDate(d: Date): string {
+  let h = d.getHours();
+  const m = pad2(d.getMinutes());
+  const ap = h >= 12 ? "PM" : "AM";
+  h = h % 12; if (h === 0) h = 12;
+  return `${pad2(h)}:${m} ${ap}`;
 }
 
-export function DateTimeAutoformatField({
-  name,
+/** Legacy compat: "MM/DD/YY HH:MM AM/PM" */
+export function formatMaskedLocal(d: Date): string {
+  return `${formatDateMaskFromDate(d)} ${formatTimeMaskFromDate(d)}`;
+}
+
+/* ================= Validators ================= */
+export function isValidDateMask(v: string) {
+  const m = /^(\d{2})\/(\d{2})\/(\d{2})$/.exec(v.trim());
+  if (!m) return false;
+  const mm = +m[1], dd = +m[2];
+  if (mm < 1 || mm > 12) return false;
+  if (dd < 1 || dd > 31) return false;
+  return true;
+}
+export function isValidTimeMask(v: string) {
+  const m = /^(\d{2}):(\d{2})\s+(AM|PM)$/.exec(v.trim());
+  if (!m) return false;
+  const hh = +m[1], mm = +m[2];
+  return hh >= 1 && hh <= 12 && mm >= 0 && mm <= 59;
+}
+
+/* ================= Date: MM/DD/YY ================= */
+export const DateMaskField: React.FC<MaskFieldProps> = ({
   value,
   onChange,
-  label,
-  placeholder = "MM/DD/YYYY, hh:mm AM",
-  required,
-}: AutoDateProps) {
-  const inputRef = React.useRef<HTMLInputElement>(null);
+  label = "Date",
+  errorText = null,
+  disabled,
+  placeholder = "mm/dd/yy",
+  fullWidth = true,
+  size = "small",
+  variant = "outlined",
+}) => {
+  // type as-you-type: insert slashes
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const d = onlyDigits(e.target.value).slice(0, 6); // MM DD YY
+    const mm = d.slice(0, 2);
+    const dd = d.slice(2, 4);
+    const yy = d.slice(4, 6);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    const el = e.target as HTMLInputElement;
-    const raw = el.value ?? "";
-    const caretPos = el.selectionStart ?? raw.length;
-    const tokensBefore = countTokensBefore(raw.toUpperCase(), caretPos);
-    const formatted = formatProgressive(raw);
-    onChange({ target: { name, value: formatted } });
-    requestAnimationFrame(() => {
-      const node = inputRef.current;
-      if (!node) return;
-      const newIndex = caretIndexAfterTokens(formatted, tokensBefore);
-      node.setSelectionRange(newIndex, newIndex);
-    });
+    let out = "";
+    if (mm) out += mm;
+    if (d.length >= 3) out += "/" + dd;
+    else if (d.length >= 2) out += "/";
+
+    if (d.length >= 5) out += "/" + yy;
+    else if (d.length >= 4) out += "/";
+
+    onChange(out);
+  };
+
+  // inside DateMaskField component, add this handler:
+  const handleKeyDownDate = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const el = e.currentTarget;
+    const pos = el.selectionStart ?? 0;
+    const val = el.value; // use live input value, not React state
+
+    if (e.key === "Backspace") {
+      if (pos > 0 && val[pos - 1] === "/") {
+        e.preventDefault();
+        requestAnimationFrame(() => el.setSelectionRange(pos - 1, pos - 1));
+      }
+    } else if (e.key === "Delete") {
+      if (pos < val.length && val[pos] === "/") {
+        e.preventDefault();
+        requestAnimationFrame(() => el.setSelectionRange(pos + 1, pos + 1));
+      }
+    }
+  };
+
+  // normalize on blur: pad/clamp soft
+  const handleBlur = () => {
+    const d = onlyDigits(value);
+    if (!d) return;
+    let mm = d.slice(0, 2).padEnd(2, "0");
+    let dd = d.slice(2, 4).padEnd(2, "0");
+    let yy = d.slice(4, 6).padEnd(2, "0");
+
+    mm = pad2(clamp(parseInt(mm, 10) || 0, 1, 12));
+    dd = pad2(clamp(parseInt(dd, 10) || 0, 1, 31));
+
+    onChange(`${mm}/${dd}/${yy}`);
   };
 
   return (
-    <TextField
-      name={name}
-      label={label}
-      value={value}
-      onChange={handleChange}
-      inputRef={inputRef}
-      onBlur={() => {
-        const d = parseExactMasked(value);
-        if (d) {
-          onChange({ target: { name, value: dfFormat(d, FMT) } });
-        }
-      }}
-      onFocus={() => {
-        const d = parseExactMasked(value);
-        if (d) {
-          onChange({ target: { name, value: dfFormat(d, FMT) } });
-        }
-      }}
-      placeholder={placeholder}
-      required={required}
-      slotProps={{
-        input: {
-          inputRef, 
-          inputProps: { inputMode: "text", spellCheck: "false" },
-        },
-      }}
-      sx={{ '& .MuiFilledInput-input': { fontSize: 13 } }}
-      fullWidth
-      size="small"
-    />
+    <>
+      <TextField
+        variant={variant}
+        size={size}
+        fullWidth={fullWidth}
+        label={label}
+        placeholder={placeholder}
+        value={value}
+        onChange={handleChange}
+        onBlur={handleBlur}
+        disabled={disabled}
+        error={!!errorText}
+        slotProps={{
+          input: {
+            inputProps: {
+              maxLength: 8,
+              inputMode: "numeric",
+              onKeyDown: handleKeyDownDate,
+              autoComplete: "off",
+              style: { textAlign: "left", fontVariantNumeric: "tabular-nums" },
+            },
+          },
+        }}
+      />
+      {errorText && <FormHelperText error sx={{ m: 0 }}>{errorText}</FormHelperText>}
+    </>
   );
-}
+};
+
+/* ================= Time: HH:MM AM/PM ================= */
+export const TimeMaskField: React.FC<MaskFieldProps> = ({
+  value,
+  onChange,
+  label = "Time",
+  errorText = null,
+  disabled,
+  placeholder = "hh:mm PM",
+  fullWidth = true,
+  size = "small",
+  variant = "outlined",
+}) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+
+    // keep digits + letters (for am/pm), strip everything else dynamically
+    const digits = onlyDigits(raw).slice(0, 4); // HHMM
+    let letters = raw.replace(/[^a-zA-Z]/g, "").toUpperCase();
+    if (letters.startsWith("A")) letters = "AM";
+    else if (letters.startsWith("P")) letters = "PM";
+    else letters = "";
+
+    const hh = digits.slice(0, 2);
+    const mm = digits.slice(2, 4);
+
+    let out = "";
+    if (hh) out += hh;
+    if (digits.length >= 3) out += ":" + mm;
+    else if (digits.length >= 2) out += ":";
+
+    if (letters) out += ` ${letters}`;
+
+    onChange(out);
+  };
+
+  const handleKeyDownTime = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const el = e.currentTarget;
+    const pos = el.selectionStart ?? 0;
+    const selEnd = el.selectionEnd ?? pos;
+    const v = el.value;
+
+    // Let the browser handle range deletions normally.
+    if (pos !== selEnd) return;
+
+    if (e.key === "Backspace") {
+      // Case 1: caret at end and value ends with " AM" or " PM"
+      if (pos === v.length && /\s[AP]M$/i.test(v)) {
+        e.preventDefault();
+        const cut = v.lastIndexOf(" ");              // space before AM/PM
+        const newV = cut >= 0 ? v.slice(0, cut) : v; // remove " AM"/" PM"
+        onChange(newV);
+        requestAnimationFrame(() => {
+          const newPos = newV.length;                // -> after minutes ("HH:MM|")
+          el.setSelectionRange(newPos, newPos);
+        });
+        return;
+      }
+
+      // Case 2: skip mask chars just before caret (":" or space)
+      if (pos > 0 && (v[pos - 1] === ":" || v[pos - 1] === " ")) {
+        e.preventDefault();
+        requestAnimationFrame(() => el.setSelectionRange(pos - 1, pos - 1));
+        return;
+      }
+    } else if (e.key === "Delete") {
+      // Optional symmetry: skip mask chars just after caret
+      if (pos < v.length && (v[pos] === ":" || v[pos] === " ")) {
+        e.preventDefault();
+        requestAnimationFrame(() => el.setSelectionRange(pos + 1, pos + 1));
+        return;
+      }
+    }
+  };
+
+  // NEW: after the browser deletes 'M' or 'A', collapse over trailing space/colon
+  const handleKeyUpTime = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Backspace") return;
+    const el = e.currentTarget;
+    requestAnimationFrame(() => {
+      let pos = el.selectionStart ?? 0;
+      const v = el.value;
+      // if we're now just after a space, hop left over it
+      if (pos > 0 && v[pos - 1] === " ") {
+        el.setSelectionRange(pos - 1, pos - 1);
+        pos = pos - 1;
+      }
+      // if we're now just after a colon, hop left over it too
+      if (pos > 0 && v[pos - 1] === ":") {
+        el.setSelectionRange(pos - 1, pos - 1);
+      }
+    });
+  };
+
+  // normalize on blur: pad/clamp + ensure AM/PM capitalization
+  const handleBlur = () => {
+    const m = value.match(/^(\d{1,2})(?::?(\d{0,2}))?\s*(am|pm)?$/i);
+    if (!m) return;
+
+    let h = parseInt(m[1] || "0", 10);
+    let mins = parseInt((m[2] || "0").padEnd(2, "0"), 10);
+    const ap = (m[3] || "").toUpperCase() as "" | "AM" | "PM";
+
+    h = clamp(h || 0, 1, 12);
+    mins = clamp(mins || 0, 0, 59);
+
+    const out = `${pad2(h)}:${pad2(mins)}${ap ? ` ${ap}` : ""}`;
+    onChange(out);
+  };
+
+  return (
+    <>
+      <TextField
+        variant={variant}
+        size={size}
+        fullWidth={fullWidth}
+        label={label}
+        placeholder={placeholder}
+        value={value}
+        onChange={handleChange}
+        onBlur={handleBlur}
+        disabled={disabled}
+        error={!!errorText}
+        slotProps={{
+          input: {
+            inputProps: {
+              maxLength: 8, 
+              inputMode: "numeric",
+              onKeyDown: handleKeyDownTime,
+              onKeyUp: handleKeyUpTime,
+              autoComplete: "off",
+              style: { textAlign: "left", fontVariantNumeric: "tabular-nums" },
+            },
+          },
+        }}
+      />
+      {errorText && <FormHelperText error sx={{ m: 0 }}>{errorText}</FormHelperText>}
+    </>
+  );
+};

@@ -1,38 +1,105 @@
 import { getAccessToken, terminateToken } from "./oauth";
 
+type EventPoint = { date: string } | { dateTime: string };
+
 interface EventInput {
   title: string;
   location?: string;
-  startTime: { dateTime: string };
-  endTime?: { dateTime: string };
+  startDate: string;
+  endDate?: string;
+  startTime: EventPoint;
+  endTime?: EventPoint;
   description?: string;
   calendarId: string;
 }
 
 interface GoogleEventBody {
   summary: string;
-  start: { dateTime: string };
-  end: { dateTime: string };
+  start: EventPoint;
+  end: EventPoint;
   location?: string;
   description?: string;
 }
 
 function toRFC3339Local(input: string): string {
-  let d = new Date(input);
-  if (isNaN(d.getTime())) {
-      const m = input.match(/^\s*(\d{1,2})\/(\d{1,2})\/(\d{4}),\s*(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)\s*$/i);
-      if (!m) throw new Error(`Unsupported date format: ${input}`);
-      const [, M, D, Y, h, min, s = "0", ampm] = m;
-      const H = (parseInt(h, 10) % 12) + (/pm/i.test(ampm) ? 12 : 0);
-      d = new Date(parseInt(Y, 10), parseInt(M, 10) - 1, parseInt(D, 10), H, parseInt(min, 10), parseInt(s, 10), 0);
+  const s = String(input).trim();
+
+  if (
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+\-]\d{2}:\d{2})$/.test(s)
+  ) {
+    return s;
   }
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const offMin = -d.getTimezoneOffset();
-  const sign = offMin >= 0 ? "+" : "-";
-  const oh = pad(Math.floor(Math.abs(offMin) / 60));
-  const om = pad(Math.abs(offMin) % 60);
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-      + `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${sign}${oh}:${om}`;
+
+  const pad2 = (n: number) => String(n).padStart(2, "0");
+
+  // 1) Try masked US style: "MM/DD/YY[YY][,] HH:MM[:SS] [AM|PM]" (time part optional)
+  {
+    // with optional comma and optional seconds + optional AM/PM
+    const m = s.match(
+      /^\s*(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})(?:,)?(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?)?\s*$/i
+    );
+    if (m) {
+      let [, M, D, Y, hh, mm, ss = "0", ap] = m;
+
+      // Year normalize: 2-digit → pivot 69 (00–69 => 2000–2069, else 1900–1999)
+      let year = parseInt(Y, 10);
+      if (Y.length === 2) {
+        year = year <= 69 ? 2000 + year : 1900 + year;
+      }
+
+      const month = Math.min(Math.max(parseInt(M, 10), 1), 12);
+      const day = Math.min(Math.max(parseInt(D, 10), 1), 31);
+
+      let H = 0, MIN = 0, SEC = 0;
+
+      if (hh && mm) {
+        H = parseInt(hh, 10);
+        MIN = parseInt(mm, 10);
+        SEC = parseInt(ss || "0", 10);
+
+        if (ap) {
+          // 12-hour with AM/PM if suffix present
+          const isPM = /pm/i.test(ap);
+          H = (H % 12) + (isPM ? 12 : 0);
+        } else {
+          // 24-hour if no suffix
+          H = Math.min(Math.max(H, 0), 23);
+        }
+        MIN = Math.min(Math.max(MIN, 0), 59);
+        SEC = Math.min(Math.max(SEC, 0), 59);
+      }
+
+      const d = new Date(year, month - 1, day, H, MIN, SEC, 0);
+
+      // Format with local offset
+      const offMin = -d.getTimezoneOffset(); // positive east
+      const sign = offMin >= 0 ? "+" : "-";
+      const oh = pad2(Math.floor(Math.abs(offMin) / 60));
+      const om = pad2(Math.abs(offMin) % 60);
+
+      return (
+        `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` +
+        `T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}${sign}${oh}:${om}`
+      );
+    }
+  }
+  
+  {
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) {
+      const offMin = -d.getTimezoneOffset();
+      const sign = offMin >= 0 ? "+" : "-";
+      const pad2 = (n: number) => String(n).padStart(2, "0");
+      const oh = pad2(Math.floor(Math.abs(offMin) / 60));
+      const om = pad2(Math.abs(offMin) % 60);
+      return (
+        `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` +
+        `T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}${sign}${oh}:${om}`
+      );
+    }
+  }
+
+  throw new Error(`Unsupported date format: ${input}`);
 }
 
 async function postEvent(url: string, body: object, retries: number = 3, backoff: number = 500): Promise<Response> {
@@ -157,59 +224,90 @@ export async function getCalendars(
 }
 
 export async function handleAddEvent(event: EventInput): Promise<void> {
-    if (!event.title || !event.title.trim()) {
-        console.error("Event title is required.");
-        return;
+  if (!event.title || !event.title.trim()) {
+    console.error("Event title is required.");
+    return;
+  }
+  if (!event.startDate?.trim()) {
+    console.error("Start date is required.");
+    return;
+  }
+  if (!event.startTime) {
+    console.error("Start time/date is required.");
+    return;
+  }
+
+  const startTimeStr = "dateTime" in event.startTime ? event.startTime.dateTime.trim() : "";
+
+  const endTimeStr =
+    event.endTime && "dateTime" in event.endTime
+      ? event.endTime.dateTime.trim()
+      : "";
+
+  if (!startTimeStr) {
+    console.error("Start time is required.");
+    return;
+  }
+
+  const startInputStr = `${event.startDate.trim()}, ${startTimeStr}`;
+  const startISO = toRFC3339Local(startInputStr);
+
+
+  let endISO: string;
+
+  if (event.endDate?.trim() && endTimeStr) {
+    // end date + end time
+    const endInputStr = `${event.endDate.trim()}, ${endTimeStr}`;
+    endISO = toRFC3339Local(endInputStr);
+  } else if (endTimeStr) {
+    // only end time -> same date as start
+    const endInputStr = `${event.startDate.trim()}, ${endTimeStr}`;
+    endISO = toRFC3339Local(endInputStr);
+  } else if (event.endDate?.trim()) {
+    // only end date -> reuse start clock time
+    const endInputStr = `${event.endDate.trim()}, ${startTimeStr}`;
+    endISO = toRFC3339Local(endInputStr);
+  } else {
+    // no end -> +60m
+    const start = new Date(startISO);
+    if (isNaN(start.getTime())) {
+      console.error("Invalid start instant.");
+      return;
     }
-    if (!event.startTime?.dateTime) {
-        console.error("Start and end time are required.");
-        return;
-    }
+    endISO = new Date(start.getTime() + 60 * 60 * 1000).toISOString();
+  }
 
-    let endInput: string;
-    if (!event.endTime?.dateTime) {
-        const startDate = new Date(event.startTime.dateTime);
-        if (isNaN(startDate.getTime())) {
-            console.error("Invalid start time format.");
-            return;
-        }
-        startDate.setHours(startDate.getHours() + 1);
-        endInput = startDate.toISOString(); // use ISO string for conversion
-    } else {
-        endInput = event.endTime.dateTime;
-    }
+  if (new Date(endISO) <= new Date(startISO)) {
+    endISO = new Date(new Date(startISO).getTime() + 60 * 60 * 1000).toISOString();
+  }
 
-    const startISO = toRFC3339Local(event.startTime.dateTime);
-    const endISO   = toRFC3339Local(endInput);
+  const body: GoogleEventBody = {
+    summary: event.title.trim(),
+    start: { dateTime: startISO },
+    end: { dateTime: endISO },
+  };
+  if (event.location && event.location.trim().length > 0) body.location = event.location.trim();
+  if (event.description && event.description.trim().length > 0) body.description = event.description.trim();
 
-    const body: GoogleEventBody = {
-      summary: event.title.trim(),
-      start: { dateTime: startISO },
-      end: { dateTime: endISO },
-    };
-    if (event.location && event.location.trim().length > 0) body.location = event.location.trim();
-    if (event.description && event.description.trim().length > 0) body.description = event.description.trim();
+  const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(event.calendarId)}/events`;
 
-    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(event.calendarId)}/events`;
+  try {
+      const response = await postEvent(url, body);
 
-    try {
-        const response = await postEvent(url, body);
-
-        if (response.ok) {
-            console.log("Event added");
-            return;
-        } else {
-            let errorData: unknown = {};
-            try {
-              errorData = await response.json();
-            } catch (e) {
-              // response body is not JSON or could not be parsed
-              console.debug('Failed parsing error JSON', e);
-            }
-            console.error("Failed to add event:", response.status, errorData);
-            return;
-        }
-    } catch (error) {
-        console.error("An error occurred while adding the event:", error);
-    }
+      if (response.ok) {
+          console.log("Event added");
+          return;
+      } else {
+          let errorData: unknown = {};
+          try {
+            errorData = await response.json();
+          } catch (e) {
+            console.error('Failed parsing error JSON', e);
+          }
+          console.error("Failed to add event:", response.status, errorData);
+          return;
+      }
+  } catch (error) {
+      console.error("An error occurred while adding the event:", error);
+  }
 }
