@@ -13,10 +13,15 @@ import { handleAddEvent, getCalendars } from "./api";
 import { TextField, Switch, CircularProgress } from "@mui/material";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
-import { DateTimeAutoformatField, formatMaskedLocal } from "./timemask";
+import {
+    DateMaskField,
+    TimeMaskField,
+    formatDateMaskFromDate,
+    formatTimeMaskFromDate,
+} from "./timemask";
+import { resolveEventFromText } from "./parser";
 import "nes.css/css/nes.min.css";
 import { motion, AnimatePresence } from "framer-motion";
-import * as chrono from "chrono-node";
 import { loadNerPipeline, runModel } from "./model";
 
 export default function Popup() {
@@ -29,8 +34,10 @@ export default function Popup() {
     try { return localStorage.getItem("darkMode") === "true"; } catch { return false; }
   });
   const [eventTitle, setEventTitle] = useState<string>("");
-  const [start, setStart] = useState<string>("");
-  const [end, setEnd] = useState<string>("");
+  const [startDate, setStartDate] = useState<string>("");
+  const [startTime, setStartTime] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [endTime, setEndTime] = useState<string>("");
   const [showOptions, setShowOptions] = useState<boolean>(false);
   const [location, setLocation] = useState<string>("");
   const [description, setDescription] = useState<string>("");
@@ -98,7 +105,7 @@ const theme = createTheme({
     },
 });
 
-    useEffect(() => {
+useEffect(() => {
     let previousText = "";
     console.log("[Calighter] Poller effect mount. input =", input);
     const interval = setInterval(() => {
@@ -132,14 +139,21 @@ const theme = createTheme({
                 response.selectedText !== previousText
             ) {
                 previousText = response.selectedText;
-                const parsedDate = chrono.parse(response.selectedText);
-                console.log("Parsed Date:", parsedDate);
-                if (parsedDate && parsedDate.length > 0) {
-                const { start: chronoStart, end: chronoEnd } = parsedDate[0];
-                setStart(
-                    chronoStart ? formatMaskedLocal(chronoStart.date()) : "",
-                );
-                setEnd(chronoEnd ? formatMaskedLocal(chronoEnd.date()) : "");
+                try {
+                    const result = resolveEventFromText(response.selectedText, new Date()); // now handles time-only → today
+                    if (result) {
+                        setStartDate(formatDateMaskFromDate(result.start));
+                        setEndDate(formatDateMaskFromDate(result.end));
+                        if (result.hasTime) {
+                        setStartTime(formatTimeMaskFromDate(result.start));
+                        setEndTime(formatTimeMaskFromDate(result.end));
+                        } else {
+                        setStartTime("");
+                        setEndTime("");
+                        }
+                    }
+                } catch (e) {
+                console.error("[Calighter] Parser error:", e);
                 }
                 try {
                 if (nerPipelineLoaded) {
@@ -276,8 +290,10 @@ const theme = createTheme({
                     await terminateToken();
                     setAuthed(false);
                     setEventTitle("");
-                    setStart("");
-                    setEnd("");
+                    setStartDate("");
+                    setStartTime("");
+                    setEndDate("");
+                    setEndTime("");
                     setLocation("");
                     setDescription("");
                     }}
@@ -306,30 +322,34 @@ const theme = createTheme({
                     fullWidth
                     size="small"
                     sx={{ "& .MuiFilledInput-input": { fontSize: 13 } }}
-                    placeholder="Event Title"
+                    label="Event Title"
                     value={eventTitle}
                     onChange={(e) => setEventTitle(e.target.value)}
                 />
                 </div>
                 <div className="mb-4 flex items-center gap-2 w-full">
-                <DateTimeAutoformatField
-                    name="start"
-                    value={start}
-                    onChange={(e) => setStart(e.target.value)}
-                    label={undefined}
-                    placeholder="Start Time"
-                    style={{}}
-                />
+                    <DateMaskField
+                        value={startDate}             
+                        onChange={setStartDate}
+                        label="Start Date"
+                    />
+                    <TimeMaskField
+                        value={startTime}             
+                        onChange={setStartTime}
+                        label="Start Time"
+                    />
                 </div>
                 <div className="mb-4 flex items-center gap-2 w-full">
-                <DateTimeAutoformatField
-                    name="end"
-                    value={end}
-                    onChange={(e) => setEnd(e.target.value)}
-                    label={undefined}
-                    placeholder="End Time"
-                    style={{}}
-                />
+                    <DateMaskField
+                        value={endDate}             
+                        onChange={setEndDate}
+                        label="End Date"
+                    />
+                     <TimeMaskField
+                        value={endTime}             
+                        onChange={setEndTime}
+                        label="End Time"
+                    />
                 </div>
                 <div className="mb-4 flex items-center gap-2 w-full">
                 <TextField
@@ -337,8 +357,7 @@ const theme = createTheme({
                     fullWidth
                     size="small"
                     sx={{ "& .MuiFilledInput-input": { fontSize: 13 } }}
-                    label=""
-                    placeholder="Location"
+                    label="Location"
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
                     multiline
@@ -351,8 +370,7 @@ const theme = createTheme({
                     fullWidth
                     size="small"
                     sx={{ "& .MuiFilledInput-input": { fontSize: 13 } }}
-                    label=""
-                    placeholder="Description"
+                    label="Description"
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     multiline
@@ -365,8 +383,10 @@ const theme = createTheme({
                     handleAddEvent({
                         title: eventTitle,
                         location: location,
-                        startTime: { dateTime: start },
-                        endTime: { dateTime: end },
+                        startDate: startDate,
+                        endDate: endDate,
+                        startTime: { dateTime: startTime },
+                        endTime: { dateTime: endTime },
                         description: description,
                         calendarId:
                         selectedCalendar ||
@@ -384,11 +404,13 @@ const theme = createTheme({
                     onMouseEnter={() => setTrash(true)}
                     onMouseLeave={() => setTrash(false)}
                     onClick={() => {
-                    setEventTitle("");
-                    setStart("");
-                    setEnd("");
-                    setLocation("");
-                    setDescription("");
+                        setEventTitle("");
+                        setStartDate("");
+                        setStartTime("");
+                        setEndDate("");
+                        setEndTime("");
+                        setLocation("");
+                        setDescription("");
                     }}
                     className="bg-transparent hover:bg-gray-200 transition-colors duration-200 flex items-center justify-center p-2 rounded-full"
                 >
