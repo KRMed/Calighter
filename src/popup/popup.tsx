@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import CalighterDarkModeIcon from "/Calighter_icon_white_48x48.png";
 import CalighterIcon from "/Calighter_icon_48x48.png";
 import {
   loadDarkModeSetting,
@@ -195,7 +196,7 @@ useEffect(() => {
         <div className="flex items-center gap-2">
             <img
             className="w-19 h-19 object-contain shrink-0"
-            src={CalighterIcon}
+            src={darkMode ? CalighterDarkModeIcon : CalighterIcon}
             alt="Calighter Icon"
             />
             <h1 className="relative top-[5px] text-black dark:text-white text-6xl font-normal font-['VT323'] leading-none align-middle">
