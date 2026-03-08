@@ -49,6 +49,10 @@ function getEntityType(tag: string): keyof NERResult | null {
     return null;
 }
 
+function toTitleCase(str: string): string {
+    return str.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function detokenize(words: string[]): string {
     let output = "";
     for (let i = 0; i < words.length; i++) {
@@ -102,7 +106,7 @@ export async function runModel(text: string): Promise<NERResult> {
                 const phraseLower = detokenize(current.tokens).toLowerCase();
                 const matchIndex = textLower.indexOf(phraseLower);
 
-                let originalCasedPhrase = phraseLower;
+                let originalCasedPhrase = toTitleCase(phraseLower);
                 if (matchIndex !== -1) {
                     originalCasedPhrase = text.slice(matchIndex, matchIndex + phraseLower.length);
                 }
@@ -133,7 +137,7 @@ export async function runModel(text: string): Promise<NERResult> {
             const phraseLower = detokenize(current.tokens).toLowerCase();
             const matchIndex = textLower.indexOf(phraseLower);
 
-            let originalCasedPhrase = phraseLower;
+            let originalCasedPhrase = toTitleCase(phraseLower);
             if (matchIndex !== -1) {
                 originalCasedPhrase = text.slice(matchIndex, matchIndex + phraseLower.length);
             }
