@@ -117,19 +117,35 @@ export function extractDateOnly(text: string, now = new Date()): DateOnly | null
     if (isValid(d)) return { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() };
   }
 
+  // MM/DD/YY (2-digit year, e.g. "3/15/26")
+  m = s.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{2})(?!\d)\b/);
+  if (m) {
+    const month = +m[1], day = +m[2];
+    let yr = +m[3];
+    yr = yr <= 69 ? 2000 + yr : 1900 + yr; // pivot: 00–69 → 2000–2069, 70–99 → 1900–1999
+    const d = new Date(yr, month - 1, day);
+    if (isValid(d)) return { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() };
+  }
+
   // Month names with optional ordinals: "Oct 11", "Oct 11th", "October 2nd, 2025"
   m = s.match(
     /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?(?:,\s*\d{4})?\b/
   );
   if (m) {
-    const raw = m[0].replace(",", "").replace(/\b(\d{1,2})(st|nd|rd|th)\b/, "$1");
-    let d = parseDF(raw, "MMM d yyyy", now);
-    if (!isValid(d)) d = parseDF(raw, "MMM d", now); // fallback: no year → current year
+    const raw = m[0].replace(",", "").replace(/\b(\d{1,2})(st|nd|rd|th)\b/, "$1").trim();
+    // normalize() lowercased everything; capitalize for date-fns locale matching
+    // Try both full ("MMMM" = "March") and abbreviated ("MMM" = "Mar") month name formats
+    const rawCap = raw.charAt(0).toUpperCase() + raw.slice(1);
+    let d = parseDF(rawCap, "MMMM d yyyy", now);
+    if (!isValid(d)) d = parseDF(rawCap, "MMM d yyyy", now);
+    if (!isValid(d)) d = parseDF(rawCap, "MMMM d", now);
+    if (!isValid(d)) d = parseDF(rawCap, "MMM d", now);
     if (isValid(d)) return { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() };
   }
 
   // MM/DD (no year), optional weekday e.g., "Friday 10/10"
-  m = s.match(/\b(\d{1,2})\/(\d{1,2})(?!\/)\b/);
+  // Lookbehind prevents matching the DD/YY tail of an MM/DD/YY string
+  m = s.match(/(?<![/\d])\b(\d{1,2})\/(\d{1,2})(?![/\d])\b/);
   if (m) {
     const month = +m[1],
       day = +m[2];
@@ -193,8 +209,8 @@ export function extractTimeOnly(text: string): ParsedTime {
       return { type: "single", start: { hour: H, minute: M } };
   }
 
-  // Bare "@ 6" / "at 6" / standalone "6"
-  m = s.match(/\b(?:@|at)?\s*(\d{1,2})\b/);
+  // "@ 6" / "at 6" — prefix is required to avoid matching bare day numbers (e.g. "March 15")
+  m = s.match(/\b(?:@|at)\s+(\d{1,2})\b/);
   if (m) {
     const H = +m[1];
     if (H >= 0 && H <= 23) return { type: "single", start: { hour: H, minute: 0 } };
