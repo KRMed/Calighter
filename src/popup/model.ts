@@ -21,9 +21,7 @@ let nerPipeline: NerPipeline | null = null;
 export async function loadNerPipeline(): Promise<NerPipeline> {
     if (nerPipeline) return nerPipeline;
 
-    const p = await pipeline('token-classification', 'donteattofu/calighter-model', {
-        progress_callback: console.log,
-    });
+    const p = await pipeline('token-classification', 'donteattofu/calighter-model');
 
     // pipeline's runtime type may not match our narrow interface; cast safely via unknown
     nerPipeline = p as unknown as NerPipeline;
@@ -81,6 +79,9 @@ export async function runModel(text: string): Promise<NERResult> {
             LOCATION: []
         };
 
+        // Cache lowercased text once rather than re-computing per entity flush
+        const textLower = text.toLowerCase();
+
         let current: {
             type: keyof NERResult;
             tokens: string[];
@@ -99,7 +100,7 @@ export async function runModel(text: string): Promise<NERResult> {
 
             if (shouldFlush && current) {
                 const phraseLower = detokenize(current.tokens).toLowerCase();
-                const matchIndex = text.toLowerCase().indexOf(phraseLower);
+                const matchIndex = textLower.indexOf(phraseLower);
 
                 let originalCasedPhrase = phraseLower;
                 if (matchIndex !== -1) {
@@ -130,7 +131,7 @@ export async function runModel(text: string): Promise<NERResult> {
         // Final flush
         if (current) {
             const phraseLower = detokenize(current.tokens).toLowerCase();
-            const matchIndex = text.toLowerCase().indexOf(phraseLower);
+            const matchIndex = textLower.indexOf(phraseLower);
 
             let originalCasedPhrase = phraseLower;
             if (matchIndex !== -1) {

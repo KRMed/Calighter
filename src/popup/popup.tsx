@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import CalighterDarkModeIcon from "/Calighter_icon_white_48x48.png";
 import CalighterIcon from "/Calighter_icon_48x48.png";
 import {
@@ -107,6 +107,8 @@ const theme = createTheme({
     },
 });
 
+  const nerDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
 useEffect(() => {
     let previousText = "";
     console.log("[Calighter] Poller effect mount. input =", input);
@@ -117,7 +119,7 @@ useEffect(() => {
         chrome.tabs.sendMessage(
             tabs[0].id!,
             { action: "getSelectedText" },
-            async (response) => {
+            (response) => {
             if (chrome.runtime.lastError) {
                 console.error(
                 "[Calighter] sendMessage error:",
@@ -141,8 +143,9 @@ useEffect(() => {
                 response.selectedText !== previousText
             ) {
                 previousText = response.selectedText;
+                // Parser is fast (regex-only) — run immediately
                 try {
-                    const result = resolveEventFromText(response.selectedText, new Date()); // now handles time-only → today
+                    const result = resolveEventFromText(response.selectedText, new Date());
                     if (result) {
                         setStartDate(formatDateMaskFromDate(result.start));
                         setEndDate(formatDateMaskFromDate(result.end));
@@ -157,33 +160,37 @@ useEffect(() => {
                 } catch (e) {
                 console.error("[Calighter] Parser error:", e);
                 }
+                // NER is expensive — debounce so rapid selection changes don't queue up model runs
+                if (nerDebounceRef.current) clearTimeout(nerDebounceRef.current);
+                nerDebounceRef.current = setTimeout(async () => {
                 try {
-                if (nerPipelineLoaded) {
+                    if (nerPipelineLoaded) {
                     console.log("Running NER on:", response.selectedText);
                     const results = await runModel(response.selectedText);
                     console.log("NER results:", results);
-
                     if (results && results.EVENT.length > 0) {
-                    console.log("Event detected:", results.EVENT[0]);
-                    setEventTitle(results.EVENT.map((e) => e.text).join(" "));
+                        console.log("Event detected:", results.EVENT[0]);
+                        setEventTitle(results.EVENT.map((e) => e.text).join(" "));
                     }
                     if (results && results.LOCATION.length > 0) {
-                    console.log("Location detected:", results.LOCATION[0]);
-                    setLocation(results.LOCATION.map((e) => e.text).join(" "));
+                        console.log("Location detected:", results.LOCATION[0]);
+                        setLocation(results.LOCATION.map((e) => e.text).join(" "));
                     }
-                }
+                    }
                 } catch (error) {
-                console.error("Error running NER model:", error);
+                    console.error("Error running NER model:", error);
                 }
+                }, 400);
             }
             },
         );
         });
-    }, 200);
+    }, 300); // 300ms: less IPC churn than 200ms, still responsive
 
     return () => {
         console.log("[Calighter] Poller effect cleanup.");
         clearInterval(interval);
+        if (nerDebounceRef.current) clearTimeout(nerDebounceRef.current);
     };
     }, [input, nerPipelineLoaded]);
 
