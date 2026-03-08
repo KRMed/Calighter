@@ -43,6 +43,7 @@ export default function Popup() {
   const [location, setLocation] = useState<string>("");
   const [description, setDescription] = useState<string>("");
   const [trash, setTrash] = useState<boolean>(false);
+  const [addStatus, setAddStatus] = useState<"idle" | "success" | "error">("idle");
 
   // Check authentication on mount
   useEffect(() => {
@@ -380,8 +381,9 @@ useEffect(() => {
                 </div>
                 <div className="mb-8 mt-8 flex justify-center gap-4 w-full">
                 <button
-                    onClick={async () =>
-                    handleAddEvent({
+                    disabled={addStatus !== "idle"}
+                    onClick={async () => {
+                    const success = await handleAddEvent({
                         title: eventTitle,
                         location: location,
                         startDate: startDate,
@@ -394,12 +396,28 @@ useEffect(() => {
                         (calendarList && calendarList.length > 0
                             ? calendarList[0].id
                             : ""),
-                    })
+                    });
+                    if (success) {
+                        setAddStatus("success");
+                        setEventTitle("");
+                        setStartDate("");
+                        setStartTime("");
+                        setEndDate("");
+                        setEndTime("");
+                        setLocation("");
+                        setDescription("");
+                    } else {
+                        setAddStatus("error");
                     }
-                    className="text-black dark:bg-white text-3xl font-normal font-['VT323'] outline outline-2 px-4 py-2 rounded"
-                    style={{ outlineColor: "#07BCFA" }}
+                    setTimeout(() => setAddStatus("idle"), 2000);
+                    }}
+                    className="text-3xl font-normal font-['VT323'] outline outline-2 px-4 py-2 rounded transition-colors disabled:opacity-75"
+                    style={{
+                    outlineColor: addStatus === "error" ? "#ef4444" : addStatus === "success" ? "#22c55e" : "#07BCFA",
+                    color: addStatus === "error" ? "#ef4444" : addStatus === "success" ? "#22c55e" : darkMode ? "#ffffff" : "#000000",
+                    }}
                 >
-                    Add to Calendar
+                    {addStatus === "success" ? "Success!" : addStatus === "error" ? "Failed!" : "Add to Calendar"}
                 </button>
                 <button
                     onMouseEnter={() => setTrash(true)}
