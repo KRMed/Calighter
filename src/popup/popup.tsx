@@ -184,7 +184,7 @@ useEffect(() => {
         console.log("[Calighter] Poller effect cleanup.");
         clearInterval(interval);
     };
-    }, [input]);
+    }, [input, nerPipelineLoaded]);
 
     return (
     <ThemeProvider theme={theme}>
