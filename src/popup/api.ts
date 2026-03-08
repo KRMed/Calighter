@@ -223,18 +223,18 @@ export async function getCalendars(
   return null;
 }
 
-export async function handleAddEvent(event: EventInput): Promise<void> {
+export async function handleAddEvent(event: EventInput): Promise<boolean> {
   if (!event.title || !event.title.trim()) {
     console.error("Event title is required.");
-    return;
+    return false;
   }
   if (!event.startDate?.trim()) {
     console.error("Start date is required.");
-    return;
+    return false;
   }
   if (!event.startTime) {
     console.error("Start time/date is required.");
-    return;
+    return false;
   }
 
   const startTimeStr = "dateTime" in event.startTime ? event.startTime.dateTime.trim() : "";
@@ -246,33 +246,28 @@ export async function handleAddEvent(event: EventInput): Promise<void> {
 
   if (!startTimeStr) {
     console.error("Start time is required.");
-    return;
+    return false;
   }
 
   const startInputStr = `${event.startDate.trim()}, ${startTimeStr}`;
   const startISO = toRFC3339Local(startInputStr);
 
-
   let endISO: string;
 
   if (event.endDate?.trim() && endTimeStr) {
-    // end date + end time
     const endInputStr = `${event.endDate.trim()}, ${endTimeStr}`;
     endISO = toRFC3339Local(endInputStr);
   } else if (endTimeStr) {
-    // only end time -> same date as start
     const endInputStr = `${event.startDate.trim()}, ${endTimeStr}`;
     endISO = toRFC3339Local(endInputStr);
   } else if (event.endDate?.trim()) {
-    // only end date -> reuse start clock time
     const endInputStr = `${event.endDate.trim()}, ${startTimeStr}`;
     endISO = toRFC3339Local(endInputStr);
   } else {
-    // no end -> +60m
     const start = new Date(startISO);
     if (isNaN(start.getTime())) {
       console.error("Invalid start instant.");
-      return;
+      return false;
     }
     endISO = new Date(start.getTime() + 60 * 60 * 1000).toISOString();
   }
@@ -292,22 +287,17 @@ export async function handleAddEvent(event: EventInput): Promise<void> {
   const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(event.calendarId)}/events`;
 
   try {
-      const response = await postEvent(url, body);
-
-      if (response.ok) {
-          console.log("Event added");
-          return;
-      } else {
-          let errorData: unknown = {};
-          try {
-            errorData = await response.json();
-          } catch (e) {
-            console.error('Failed parsing error JSON', e);
-          }
-          console.error("Failed to add event:", response.status, errorData);
-          return;
-      }
+    const response = await postEvent(url, body);
+    if (response.ok) {
+      console.log("Event added");
+      return true;
+    }
+    let errorData: unknown = {};
+    try { errorData = await response.json(); } catch (e) { console.error("Failed parsing error JSON", e); }
+    console.error("Failed to add event:", response.status, errorData);
+    return false;
   } catch (error) {
-      console.error("An error occurred while adding the event:", error);
+    console.error("An error occurred while adding the event:", error);
+    return false;
   }
 }
