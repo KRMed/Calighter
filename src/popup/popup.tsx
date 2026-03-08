@@ -44,6 +44,7 @@ export default function Popup() {
   const [description, setDescription] = useState<string>("");
   const [trash, setTrash] = useState<boolean>(false);
   const [addStatus, setAddStatus] = useState<"idle" | "success" | "error">("idle");
+  const [scriptAvailable, setScriptAvailable] = useState<boolean | null>(null);
 
   // Check authentication on mount
   useEffect(() => {
@@ -121,6 +122,7 @@ useEffect(() => {
             { action: "getSelectedText" },
             (response) => {
             if (chrome.runtime.lastError) {
+                setScriptAvailable(false);
                 console.error(
                 "[Calighter] sendMessage error:",
                 chrome.runtime.lastError.message,
@@ -128,9 +130,11 @@ useEffect(() => {
                 return;
             }
             if (!response) {
+                setScriptAvailable(false);
                 console.warn("[Calighter] No response from content script");
                 return;
             }
+            setScriptAvailable(true);
             if (response.error) {
                 console.error(
                 "[Calighter] Content script error:",
@@ -322,9 +326,15 @@ useEffect(() => {
                         e.target.checked,
                     );
                     setInput(e.target.checked);
+                    if (!e.target.checked) setScriptAvailable(null);
                     }}
                 />
                 </div>
+                {input && scriptAvailable === false && (
+                <p className="text-yellow-500 text-xl font-normal font-['VT323'] text-center -mt-2 mb-1">
+                    Refresh the tab to enable highlighting
+                </p>
+                )}
                 <div className="mb-4 flex items-center gap-2 w-full">
                 <TextField
                     id="outlined-basic"
